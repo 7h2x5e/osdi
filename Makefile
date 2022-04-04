@@ -12,8 +12,7 @@ ENTRY_OBJS = $(OUT_DIR)/start.o
 SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OUT_DIR)/%.o)
 
-CFLAGS = -Wall -I include -c
-
+CFLAGS = -Wall -I include -c -ffreestanding -O2 -nostdinc -nostdlib -nostartfiles
 .PHONY: all clean asm run debug directories
 
 all: directories kernel8.img
