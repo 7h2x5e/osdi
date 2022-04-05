@@ -23,6 +23,7 @@
  *
  */
 
+#include "c_string.h"
 #include "gpio.h"
 
 /* Auxilary mini UART registers */
@@ -99,12 +100,21 @@ char uart_getc() {
   do {
     asm volatile("nop");
   } while (!(*AUX_MU_LSR & 0x01));
-  return (char)(*AUX_MU_IO);
+  char c = (char)(*AUX_MU_IO);
+  return c == '\r' ? '\n' : c;
 }
 
 void uart_flush() {
   // Flush receive FIFO
   while (*AUX_MU_LSR & 0x01) {
     (*AUX_MU_IO);
+  }
+}
+
+void uart_printf(char *str) {
+  while (*str) {
+    if (*str == '\n')
+      uart_putc('\r');
+    uart_putc(*str++);
   }
 }
