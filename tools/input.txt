@@ -1,0 +1,6 @@
+help
+hello
+timestamp
+timestamp
+timestamp
+reboot
