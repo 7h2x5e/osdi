@@ -8,7 +8,7 @@ void hello();
 /* Special commands */
 
 /* Others */
-void search_command(char *);
+int search_command(char *);
 void shell();
 
 #endif

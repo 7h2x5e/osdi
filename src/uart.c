@@ -111,10 +111,18 @@ void uart_flush() {
   }
 }
 
-void uart_printf(char *str) {
-  while (*str) {
-    if (*str == '\n')
+void uart_printf(char *fmt, ...) {
+  __builtin_va_list args;
+  __builtin_va_start(args, fmt);
+
+  extern char _end;
+  char *dst = &_end;
+  vsprintf(dst, fmt, args);
+  __builtin_va_end(args);
+
+  while (*dst) {
+    if (*dst == '\n')
       uart_putc('\r');
-    uart_putc(*str++);
+    uart_putc(*dst++);
   }
 }

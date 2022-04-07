@@ -30,6 +30,6 @@ void uart_init(unsigned int baudrate);
 void uart_putc(unsigned int c);
 char uart_getc();
 void uart_flush();
-void uart_printf(char *str);
+void uart_printf(char *str, ...);
 
 #endif
