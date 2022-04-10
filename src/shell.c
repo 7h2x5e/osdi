@@ -1,5 +1,6 @@
 #include "shell.h"
 #include "c_string.h"
+#include "mbox.h"
 #include "time.h"
 #include "uart.h"
 #include "utils.h"
@@ -50,7 +51,10 @@ int search_command(char *buffer) {
 void shell() {
   char c, buffer[BUFFER_MAX_SIZE];
   unsigned int count = 0;
-  uart_printf("\n---Raspberry PI 3 B+---\n~$ ");
+  uart_printf("\n---Raspberry PI 3 B+---\n");
+  get_board_revision();
+  get_vc_mem();
+  uart_printf("~$ ");
   while ((c = uart_getc())) {
     switch (c) {
     case LINEFEED:

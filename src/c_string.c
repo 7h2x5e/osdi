@@ -39,6 +39,21 @@ static inline char *itoa(char *tmpstr, long int arg) {
   return &tmpstr[i];
 }
 
+static inline char *itoh(char *tmpstr, long int arg) {
+  int i = 18;
+  // convert to string
+  tmpstr[i] = 0;
+  do {
+    int tmp = arg & 0xF;
+    if (tmp / 10)
+      tmpstr[--i] = 'A' + tmp % 10;
+    else
+      tmpstr[--i] = '0' + tmp;
+    arg >>= 4;
+  } while (arg != 0 && i > 0);
+  return &tmpstr[i];
+}
+
 unsigned int vsprintf(char *dst, char *fmt, __builtin_va_list args) {
   long int arg;
   char *p, *orig = dst, tmpstr[39]; // tmpstr = integer part (18 digits) +
@@ -69,6 +84,11 @@ unsigned int vsprintf(char *dst, char *fmt, __builtin_va_list args) {
         // decimal number
         arg = __builtin_va_arg(args, int);
         p = itoa(tmpstr, arg);
+        goto copystring;
+      } else if (*fmt == 'h') {
+        // hex number
+        arg = __builtin_va_arg(args, int);
+        p = itoh(tmpstr, arg);
         goto copystring;
       } else if (*fmt == 'f') {
         // float
