@@ -28,13 +28,13 @@ kernel8.img: $(OBJS) $(ENTRY_OBJS)
 	$(OBJCPY) -O binary kernel8.elf kernel8.img
 
 asm: all
-	qemu-system-aarch64 -M raspi3 -kernel kernel8.img -display none -d in_asm
+	qemu-system-aarch64 -M raspi3 -kernel kernel8.img -d in_asm
 
 run: all
-	qemu-system-aarch64 -M raspi3 -kernel kernel8.img -display none -serial pty -monitor stdio
+	qemu-system-aarch64 -M raspi3 -kernel kernel8.img -serial pty -monitor stdio
 	
 debug: all
-	qemu-system-aarch64 -M raspi3 -kernel kernel8.img -display none -S -s
+	qemu-system-aarch64 -M raspi3 -kernel kernel8.img none -S -s
 
 $(OUT_DIR):
 	mkdir -p $(OUT_DIR)
