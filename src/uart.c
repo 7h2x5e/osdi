@@ -25,37 +25,37 @@
 
 #include "c_string.h"
 #include "gpio.h"
+#include "mbox.h"
 
-/* Auxilary mini UART registers */
-#define AUX_ENABLE ((volatile unsigned int *)(MMIO_BASE + 0x00215004))
-#define AUX_MU_IO ((volatile unsigned int *)(MMIO_BASE + 0x00215040))
-#define AUX_MU_IER ((volatile unsigned int *)(MMIO_BASE + 0x00215044))
-#define AUX_MU_IIR ((volatile unsigned int *)(MMIO_BASE + 0x00215048))
-#define AUX_MU_LCR ((volatile unsigned int *)(MMIO_BASE + 0x0021504C))
-#define AUX_MU_MCR ((volatile unsigned int *)(MMIO_BASE + 0x00215050))
-#define AUX_MU_LSR ((volatile unsigned int *)(MMIO_BASE + 0x00215054))
-#define AUX_MU_MSR ((volatile unsigned int *)(MMIO_BASE + 0x00215058))
-#define AUX_MU_SCRATCH ((volatile unsigned int *)(MMIO_BASE + 0x0021505C))
-#define AUX_MU_CNTL ((volatile unsigned int *)(MMIO_BASE + 0x00215060))
-#define AUX_MU_STAT ((volatile unsigned int *)(MMIO_BASE + 0x00215064))
-#define AUX_MU_BAUD ((volatile unsigned int *)(MMIO_BASE + 0x00215068))
+/* PL011 UART registers */
+#define UART0_DR ((volatile unsigned int *)(MMIO_BASE + 0x00201000))
+#define UART0_FR ((volatile unsigned int *)(MMIO_BASE + 0x00201018))
+#define UART0_IBRD ((volatile unsigned int *)(MMIO_BASE + 0x00201024))
+#define UART0_FBRD ((volatile unsigned int *)(MMIO_BASE + 0x00201028))
+#define UART0_LCRH ((volatile unsigned int *)(MMIO_BASE + 0x0020102C))
+#define UART0_CR ((volatile unsigned int *)(MMIO_BASE + 0x00201030))
+#define UART0_IMSC ((volatile unsigned int *)(MMIO_BASE + 0x00201038))
+#define UART0_ICR ((volatile unsigned int *)(MMIO_BASE + 0x00201044))
 
 void uart_init(unsigned int baudrate) {
-/* 1. Initialize UART */
-#define SYS_CLOCK_FREQ 2.5e8
-  *AUX_ENABLE |= 1;   // Enable UART1, AUX mini uart
-  *AUX_MU_CNTL = 0;   // Disable TX, TX and auto-flow control when configuring
-  *AUX_MU_LCR = 3;    // Make UART works in 8-bit mode
-  *AUX_MU_MCR = 0;    // Set RTS to high. Don't need auto-flow control
-  *AUX_MU_IER = 0;    // Disable interrupt
-  *AUX_MU_IIR = 0xc6; // No FIFO.
-  *AUX_MU_BAUD =
-      (unsigned int)((SYS_CLOCK_FREQ / 8 / baudrate) - 1); // Set baud rate
+  /* 1. Turn off UART0 */
+  *UART0_CR = 0;
 
-  /* 2. Map UART1 to GPIO pins */
+  /* 2. Set up clock for consistent divisor values */
+  mbox[0] = 9 * 4;
+  mbox[1] = MBOX_REQUEST;
+  mbox[2] = MBOX_TAG_SETCLKRATE; // set clock rate
+  mbox[3] = 12;                  // Buffer's length
+  mbox[4] = MBOX_TAG_REQ;
+  mbox[5] = 2;       // UART clock
+  mbox[6] = 4000000; // 4Mhz
+  mbox[7] = 0;       // clear turbo
+  mbox[8] = MBOX_TAG_LAST;
+  mbox_call(MBOX_CH_PROP);
 
-  /*
-   * Goal: Set GPIO14, 15 to ALT5
+  /* 3. Map UART0 to GPIO pins
+   *
+   * Goal: Set GPIO14, 15 to ALT0
    * GPIO 0-9   => GPFSEL0
    * GPIO 10-19 => GPFSEL1
    * GPIO 20-29 => GPFSEL2
@@ -65,10 +65,10 @@ void uart_init(unsigned int baudrate) {
   register unsigned int r;
   r = *GPFSEL1;
   r &= ~((7 << 12) | (7 << 15));
-  r |= (2 << 12) | (2 << 15); // ALT5 = 010
+  r |= (4 << 12) | (4 << 15); // ALT0 = 100
   *GPFSEL1 = r;
 
-  /* 2. Disable GPIO pull-up/down */
+  /* 4. Disable GPIO pull-up/down */
   *GPPUD = 0;
   // Wait 150 cycles (required set-up time for the control signal)
   r = 150;
@@ -83,31 +83,36 @@ void uart_init(unsigned int baudrate) {
   }
   *GPPUDCLK0 = 0; // Flush GPIO setup
 
-  // 3. Enable Tx, Rx
-  *AUX_MU_CNTL = 3;
+  // 5. Enable Tx, Rx
+  float buddiv = 4000000 / baudrate / 16;
+  *UART0_ICR = 0x7FF;                 // clear interrupts
+  *UART0_IBRD = (unsigned int)buddiv; // 115200 baud, IBRD=0x2, FBRD=0xB
+  *UART0_FBRD = (unsigned int)((buddiv - *UART0_IBRD) * 64);
+  *UART0_LCRH = 0x7 << 4; // 8bits, enable FIFOs
+  *UART0_CR = 0x301;      // enable Tx, Rx, UART
 }
 
 void uart_putc(unsigned int c) {
   /* Wait until we can send */
   do {
     asm volatile("nop");
-  } while (!(*AUX_MU_LSR & 0x20));
-  *AUX_MU_IO = c;
+  } while (*UART0_FR & 0x20);
+  *UART0_DR = c;
 }
 
 char uart_getc() {
   /* wait until something is in the buffer */
   do {
     asm volatile("nop");
-  } while (!(*AUX_MU_LSR & 0x01));
-  char c = (char)(*AUX_MU_IO);
+  } while (*UART0_FR & 0x10);
+  char c = (char)(*UART0_DR);
   return c == '\r' ? '\n' : c;
 }
 
 void uart_flush() {
   // Flush receive FIFO
-  while (*AUX_MU_LSR & 0x01) {
-    (*AUX_MU_IO);
+  while (!(*UART0_FR & 0x10)) {
+    (*UART0_DR);
   }
 }
 

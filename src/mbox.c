@@ -1,7 +1,7 @@
 #include "mbox.h"
 #include "uart.h"
 
-volatile unsigned int __attribute__((aligned(16))) mbox[8];
+volatile unsigned int __attribute__((aligned(16))) mbox[36];
 
 #define MBOX_BASE (MMIO_BASE + 0x0000B880)
 #define MBOX_READ ((volatile unsigned int *)(MBOX_BASE + 0x0))
@@ -52,7 +52,7 @@ void get_board_revision() {
   mbox[1] = MBOX_REQUEST;       // tags begin
   mbox[2] = GET_BOARD_REVISION; // tag identifier
   mbox[3] = 4; // maximum of request and response value buffer's length.
-  mbox[4] = 0;
+  mbox[4] = MBOX_TAG_REQ;
   mbox[5] = 0;             // value buffer
   mbox[6] = MBOX_TAG_LAST; // tags end
 
@@ -68,7 +68,7 @@ void get_vc_mem() {
   mbox[1] = MBOX_REQUEST;
   mbox[2] = GET_VC_MEMORY;
   mbox[3] = 8;
-  mbox[4] = 0;
+  mbox[4] = MBOX_TAG_REQ;
   mbox[5] = 0;
   mbox[6] = 0;
   mbox[7] = MBOX_TAG_LAST;

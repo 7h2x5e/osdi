@@ -18,9 +18,11 @@
 
 /* tags */
 #define MBOX_TAG_GETSERIAL 0x10004
+#define MBOX_TAG_SETCLKRATE 0x00038002
+#define MBOX_TAG_REQ 0x00000000
 #define MBOX_TAG_LAST 0
 
-extern volatile unsigned int mbox[8];
+extern volatile unsigned int mbox[36];
 int mbox_call(unsigned char ch);
 void get_board_revision();
 void get_vc_mem();
