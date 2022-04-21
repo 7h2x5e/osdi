@@ -109,6 +109,14 @@ char uart_getc() {
   return c == '\r' ? '\n' : c;
 }
 
+char uart_getc2() {
+  /* wait until something is in the buffer */
+  do {
+    asm volatile("nop");
+  } while (*UART0_FR & 0x10);
+  return (char)(*UART0_DR);
+}
+
 void uart_flush() {
   // Flush receive FIFO
   while (!(*UART0_FR & 0x10)) {

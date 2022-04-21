@@ -1,6 +1,7 @@
 SECTIONS
 {
   . = 0x80000;
+  PROVIDE(_code = .);
   .text : { 
     KEEP(*(.text.boot))
     *(.text .text.*)
@@ -17,3 +18,4 @@ SECTIONS
   _end = .;
 }
 __bss_size = (__bss_end - __bss_start)>>3;
+__loader_size = (_end - _code)>>3;

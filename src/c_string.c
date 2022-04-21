@@ -16,6 +16,13 @@ int strcmp(const char *p1, const char *p2) {
   return c1 - c2;
 }
 
+int strlen(const char *str) {
+  int count = 0;
+  while (*str++)
+    ++count;
+  return count;
+}
+
 int atoi(const char *str, int *dst) {
   long int sum = 0;
   char c;

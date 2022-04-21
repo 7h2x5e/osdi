@@ -27,8 +27,9 @@
 #define C_STRING_H
 
 int strcmp(const char *, const char *);
-int atoi(const char*, int *);
-int htoi(const char*, int *);
+int strlen(const char *);
+int atoi(const char *, int *);
+int htoi(const char *, int *);
 unsigned int sprintf(char *dst, char *fmt, ...);
 unsigned int vsprintf(char *dst, char *fmt, __builtin_va_list args);
 
