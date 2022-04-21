@@ -71,17 +71,17 @@ void loadimg() {
   extern char __loader_size;
   unsigned long loader_size = (unsigned long)&__loader_size;
   register char *kernel_start = (char *)(unsigned long)load_address,
-                *__new_start = kernel_start - 4096;
+                *__new_start = kernel_start - 8192;
   if ((unsigned long)kernel_start < (0x80000 + loader_size) &&
       (unsigned long)(kernel_start + kernel_size) > 0x80000) {
-    // Relocate bootloader. Assume bootloader size is less than 4096 bytes
+    // Relocate bootloader. Assume bootloader size is less than 8192 bytes
     uart_printf("Relocating bootloader from 0x%h to 0x%h\n", 0x80000,
                 (int)(unsigned long)__new_start);
     char *src = (char *)0x80000, *dst = __new_start;
     while (loader_size--)
       *dst++ = *src++;
     asm volatile("mov sp, %0" : : "r"(__new_start));
-    goto *(&&_receive_kernel + ((unsigned long)kernel_start - 4096 -
+    goto *(&&_receive_kernel + ((unsigned long)kernel_start - 8192 -
                                 0x80000)); // Calculate new address
   }
 
@@ -98,7 +98,7 @@ _receive_kernel:
   }
 
   uart_printf("\nSuccess! Load kernel...\n");
-  asm volatile("blr %0" : : "r"(__new_start + 4096));
+  asm volatile("blr %0" : : "r"(__new_start + 8192));
 
 _error:
   // Shoult not reach here
