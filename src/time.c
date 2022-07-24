@@ -1,10 +1,13 @@
 #include "time.h"
+#include "sys.h"
+#include "types.h"
 
-float getTime() {
-  register unsigned long f, t;
-  // Get the current counter frequency
-  asm volatile("mrs %0, cntfrq_el0" : "=r"(f));
-  // Read the current counter
-  asm volatile("mrs %0, cntpct_el0" : "=r"(t));
-  return (float)t / f;
+float get_timestamp()
+{
+    /* wrapper of sys_timestamp */
+    uint64_t freq, cnt;
+    register uint64_t *t0 __asm__("x0") = &freq, *t1 __asm__("x1") = &cnt;
+    asm volatile("mov x8," xstr(SYS_TIMESTAMP_NUMBER) "\n"
+                                                    "svc #0");
+    return (float) cnt / freq;
 }
