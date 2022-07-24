@@ -3,6 +3,7 @@ CC = $(TOOLCHAIN_PREFIX)gcc
 LD = $(TOOLCHAIN_PREFIX)ld
 OBJCPY = $(TOOLCHAIN_PREFIX)objcopy
 
+GIT_HOOKS := ./git/hooks/applied
 SRC_DIR = src
 OUT_DIR = build
 
@@ -15,7 +16,11 @@ OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OUT_DIR)/%.o)
 CFLAGS = -Wall -I include -c -ffreestanding -O2 -nostdinc -nostdlib -nostartfiles
 .PHONY: all clean asm run debug directories
 
-all: directories kernel8.img
+all: $(GIT_HOOKS) directories kernel8.img
+
+$(GIT_HOOKS):
+	@scripts/install-git-hooks
+	@echo
 
 $(ENTRY_OBJS): $(ENTRY)
 	$(CC) $(CFLAGS) $< -o $@
