@@ -110,7 +110,7 @@ void irq_handler(unsigned long esr, unsigned long elr)
 #if _ARM_TIMER == 1
     uint32_t basic_irq;
     do {
-        basic_irq = *IRQ_PENDING_1;
+        basic_irq = *IRQ_BASIC_PENDING;
         if (basic_irq) {
             switch (1U << __builtin_ctz(basic_irq)) {
             case (ARM_TIMER_IRQ_0):
