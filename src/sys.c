@@ -1,5 +1,6 @@
 #include "sys.h"
 #include "irq.h"
+#include "peripherals/irq.h"
 #include "peripherals/timer.h"
 #include "peripherals/uart.h"
 #include "types.h"
@@ -8,6 +9,7 @@ extern void enable_irq();
 extern void disable_irq();
 void sys_toggle_irq(uint8_t);
 void sys_timestamp();
+void gpu_irq_handler();
 
 const void *sys_call_table[] = {[SYS_TOGGLE_IRQ_NUMBER] = sys_toggle_irq,
                                 [SYS_TIMESTAMP_NUMBER] = sys_timestamp};
@@ -93,49 +95,59 @@ void sys_toggle_irq(uint8_t enable)
 
 void irq_handler(unsigned long esr, unsigned long elr)
 {
-#if _SYS_TIMER == 1
-    uint32_t gpu_irq;
-    do {
-        gpu_irq = *IRQ_PENDING_1;
-        if (gpu_irq) {
-            switch (1U << __builtin_ctz(gpu_irq)) {
-            case SYSTEM_TIMER_IRQ_1:
-                sys_timer_handler();
-                break;
-            default:
-            }
-        }
-    } while (gpu_irq);
-#endif
+    uint32_t basic_irq, local_irq;
+
 #if _ARM_TIMER == 1
-    uint32_t basic_irq;
-    do {
-        basic_irq = *IRQ_BASIC_PENDING;
-        if (basic_irq) {
-            switch (1U << __builtin_ctz(basic_irq)) {
-            case (ARM_TIMER_IRQ_0):
-                arm_timer_hanler();
-                break;
-            default:
-            }
-        }
-    } while (gpu_irq);
+    basic_irq = *IRQ_BASIC_PENDING;
+    if (ARM_TIMER_IRQ_0 & basic_irq) {
+        arm_timer_hanler();
+    }
 #endif
-#if (_LOCAL_TIMER == 1 || _CORE_TIMER == 1)
-    uint32_t local_irq;
+
     do {
         local_irq = *CORE0_IRQ_SRC;
         if (local_irq) {
             switch (1U << __builtin_ctz(local_irq)) {
+#if (_LOCAL_TIMER == 1 || _CORE_TIMER == 1)
             case CNTPNSIRQ:
                 core_timer_handler();
                 break;
             case LOCAL_TIMER_IRQ:
                 local_timer_handler();
                 break;
+#endif
+            case GPU_IRQ:
+                gpu_irq_handler();
+                break;
             default:
             }
         }
     } while (local_irq);
+}
+
+void gpu_irq_handler()
+{
+    uint32_t gpu_irq1, gpu_irq2;
+    do {
+        gpu_irq1 = *IRQ_PENDING_1;
+        gpu_irq2 = *IRQ_PENDING_2;
+        if (gpu_irq1) {
+            switch (1U << __builtin_ctz(gpu_irq1)) {
+#if _SYS_TIMER == 1
+            case SYSTEM_TIMER_IRQ_1:
+                sys_timer_handler();
+                break;
 #endif
+            default:
+            }
+        }
+        if (gpu_irq2) {
+            switch (1U << __builtin_ctz(gpu_irq2)) {
+            case UART_IRQ:
+                uart_handler();
+                break;
+            default:
+            }
+        }
+    } while (gpu_irq1 || gpu_irq2);
 }
