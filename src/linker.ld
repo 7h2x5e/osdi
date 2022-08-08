@@ -15,6 +15,15 @@ SECTIONS
       *(.bss .bss.*)
       __bss_end = .;
   }
+  .istack : {
+    KEEP(*(.istack))
+  }
+  .kstack : {
+    KEEP(*(.kstack))
+  }
+  .ustack : {
+    KEEP(*(.ustack))
+  }
   _end = .;
 }
 __bss_size = (__bss_end - __bss_start)>>3;

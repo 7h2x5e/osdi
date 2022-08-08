@@ -30,6 +30,8 @@ typedef struct ringbuf_t {
 } ringbuf_t;
 
 static ringbuf_t PL011_TX_QUEUE, PL011_RX_QUEUE;
+static bool mode;  // 0 = polling, 1 = interrupt
+enum { POLLING_MODE = false, INTERRUPT_MODE = true };
 
 void ringbuf_init(ringbuf_t *);
 void ringbuf_reset(ringbuf_t *);
@@ -110,7 +112,7 @@ void uart_disable_rx_interrupt()
     *UART0_IMSC &= ~IMSC_RXIM;
 }
 
-void uart_init(unsigned int baudrate)
+void uart_init(unsigned int baudrate, bool _mode)
 {
     /* 1. Turn off UART0 */
     *UART0_CR = 0;
@@ -168,12 +170,14 @@ void uart_init(unsigned int baudrate)
     // deal with qemu bug
     uart_write_polling(0);
 
-    // enable UART interrupt
-    ringbuf_init(&PL011_TX_QUEUE);
-    ringbuf_init(&PL011_RX_QUEUE);
-    uart_enable_rx_interrupt();
-    uart_enable_tx_interrupt();
-    *ENABLE_IRQS_2 |= 1 << 25;
+    if (INTERRUPT_MODE == (mode = _mode)) {
+        // enable UART interrupt
+        ringbuf_init(&PL011_TX_QUEUE);
+        ringbuf_init(&PL011_RX_QUEUE);
+        uart_enable_rx_interrupt();
+        uart_enable_tx_interrupt();
+        *ENABLE_IRQS_2 |= 1 << 25;
+    }
 }
 
 static inline void uart_write_polling(char c)
@@ -196,26 +200,40 @@ static inline char uart_read_polling()
 
 ssize_t uart_read(ringbuf_t *rb, void *dst, size_t count)
 {
-    // Non-blocking read. Attempts to read up to 'count' bytes.
     ssize_t num = 0;
-    while (!ringbuf_is_empty(rb) && num < count) {
-        ringbuf_pop(rb, dst++);
-        num++;
+    if (INTERRUPT_MODE == mode) {
+        // Non-blocking read. Attempts to read up to 'count' bytes.
+        while (!ringbuf_is_empty(rb) && num < count) {
+            ringbuf_pop(rb, dst++);
+            num++;
+        }
+        uart_enable_rx_interrupt();
+        return num;
     }
-    uart_enable_rx_interrupt();
-    return num;
+    // Blocking read. Read 'count' bytes
+    while (num < count) {
+        ((char *) dst)[num++] = uart_read_polling();
+    }
+    return count;
 }
 
 ssize_t uart_write(ringbuf_t *rb, void *src, size_t count)
 {
-    // Non-blocking write. Attempts to write up to 'count' bytes.
     ssize_t num = 0;
-    while (!ringbuf_is_full(rb) && num < count) {
-        ringbuf_push(rb, src++);
-        num++;
+    if (INTERRUPT_MODE == mode) {
+        // Non-blocking write. Attempts to write up to 'count' bytes.
+        while (!ringbuf_is_full(rb) && num < count) {
+            ringbuf_push(rb, src++);
+            num++;
+        }
+        uart_enable_tx_interrupt();
+        return num;
     }
-    uart_enable_tx_interrupt();
-    return num;
+    // Blocking write. Write 'count' bytes
+    while (num < count) {
+        uart_write_polling(((char *) src)[num++]);
+    }
+    return count;
 }
 
 

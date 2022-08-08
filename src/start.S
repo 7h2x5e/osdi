@@ -44,6 +44,11 @@ el1_init:
 	sub     x1, x1, x0
 	bl      memzero
 
+    bl      main
+    
+    // for failsafe
+    b       proc_hang
+
     // load exception_table to VBAR_EL1
     ldr     x0, =exception_table
     msr     VBAR_EL1, x0

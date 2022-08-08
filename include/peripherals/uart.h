@@ -7,7 +7,7 @@
 #define UART_IRQ (1 << 25)
 typedef struct ringbuf_t ringbuf_t;
 
-void uart_init(unsigned int);
+void uart_init(unsigned int, bool);
 ssize_t uart_read(ringbuf_t *, void *, size_t);
 ssize_t uart_write(ringbuf_t *, void *, size_t);
 
