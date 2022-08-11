@@ -32,6 +32,7 @@ typedef struct task_struct {
     uint64_t tid;
     uint64_t task_state;
     uint64_t cpu_state;
+    uint64_t remain;
 } task_t;
 
 extern task_t *get_current();

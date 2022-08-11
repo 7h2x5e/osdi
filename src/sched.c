@@ -23,6 +23,8 @@ static task_t task_pool[MAX_TASK] __attribute__((section(".kstack")));
 static uint8_t kstack_pool[MAX_TASK][KSTACK_SIZE]
     __attribute__((section(".kstack")));
 
+#define EPOCH 2
+
 void context_switch(task_t *next)
 {
     task_t *prev = (task_t *) get_current();
@@ -37,7 +39,7 @@ void init_task()
         task_pool[i].task_state = TASK_UNUSED;
     }
 
-    // initialize main() as task 0
+    // initialize main() as idls task
     task_t *self = &task_pool[0];
     self->tid = 0;
     self->task_state = TASK_RUNNING;
@@ -61,6 +63,7 @@ void privilege_task_create(void (*func)())
     task->task_context.sp = (uint64_t) &kstack_pool[tid + 1][0];
     task->task_context.lr = (uint64_t) *func;
     task->task_state = TASK_RUNNABLE;
+    task->remain = EPOCH;
 
     if (!runqueue_is_full(&runqueue))
         runqueue_push(&runqueue, &task);
@@ -71,6 +74,10 @@ void schedule()
     task_t *current, *next, *idle = &task_pool[0];
     asm volatile("mrs %0, tpidr_el1" : "=r"(current));
     if (current != idle) {
+        // reset if it's zero
+        if (!current->remain) {
+            current->remain = EPOCH;
+        }
         // push current task into runqueue except idle task
         runqueue_push(&runqueue, &current);
     }
@@ -82,13 +89,23 @@ void schedule()
     context_switch(next);
 }
 
+static inline void reschedule()
+{
+    task_t *current;
+    asm volatile("mrs %0, tpidr_el1" : "=r"(current));
+    if (!current->remain) {
+        uart_printf("task %d yield cpu...\n", current->tid);
+        schedule();
+    }
+}
+
 void task1()
 {
     while (1) {
         uart_printf("1...\n");
         for (int i = 0; i < (1 << 26); ++i)
             asm("nop");
-        schedule();
+        reschedule();
     }
     __builtin_unreachable();
 }
@@ -99,7 +116,7 @@ void task2()
         uart_printf("2...\n");
         for (int i = 0; i < (1 << 26); ++i)
             asm("nop");
-        schedule();
+        reschedule();
     }
     __builtin_unreachable();
 }
@@ -110,7 +127,7 @@ void task3()
         uart_printf("3...\n");
         for (int i = 0; i < (1 << 26); ++i)
             asm("nop");
-        schedule();
+        reschedule();
     }
     __builtin_unreachable();
 }

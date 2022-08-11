@@ -1,11 +1,11 @@
 #include "peripherals/timer.h"
 #include "peripherals/uart.h"
+#include "sched.h"
 #include "types.h"
 
 static int system_timer_jiffies;
 static int arm_timer_jiffies;
 static int local_timer_jiffies;
-static int core_timer_jiffies;
 
 void sys_timer_init()
 {
@@ -85,8 +85,14 @@ void core_timer_disable()
 
 void core_timer_handler()
 {
+    task_t *current;
     register uint32_t expired_period = EXPIRE_PERIOD;
     // set expired time
-    asm volatile("msr cntp_tval_el0, %0" : : "r"(expired_period));
-    uart_printf("core timer jiffies: %d\n", core_timer_jiffies++);
+    asm volatile(
+        "msr cntp_tval_el0, %[expire_period]\n\t"
+        "mrs %[task_t], tpidr_el1"
+        : [task_t] "=r"(current)
+        : [expire_period] "r"(expired_period));
+    if (current->remain > 0)
+        --current->remain;
 }

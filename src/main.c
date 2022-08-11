@@ -13,6 +13,8 @@ void main()
     privilege_task_create(&task1);
     privilege_task_create(&task2);
     privilege_task_create(&task3);
+    core_timer_enable();
+    enable_irq();
     while (1) {
         schedule();
     }
