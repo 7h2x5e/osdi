@@ -1,5 +1,5 @@
 #include "sched.h"
-#include "peripherals/uart.h"
+#include "asm/sysregs.h"
 #include "types.h"
 
 /* runqueue ring buffer */
@@ -22,6 +22,8 @@ static runqueue_t runqueue;
 static task_t task_pool[MAX_TASK] __attribute__((section(".kstack")));
 static uint8_t kstack_pool[MAX_TASK][KSTACK_SIZE]
     __attribute__((section(".kstack")));
+static uint8_t ustack_pool[MAX_TASK][USTACK_SIZE]
+    __attribute__((section(".ustack")));
 
 #define EPOCH 2
 
@@ -36,34 +38,54 @@ void init_task()
     runqueue_init(&runqueue);
 
     for (uint32_t i = 0; i < MAX_TASK; ++i) {
-        task_pool[i].task_state = TASK_UNUSED;
+        task_pool[i].state = TASK_UNUSED;
     }
 
     // initialize main() as idls task
     task_t *self = &task_pool[0];
     self->tid = 0;
-    self->task_state = TASK_RUNNING;
+    self->state = TASK_RUNNING;
     asm volatile("msr tpidr_el1, %0" ::"r"(self));
 }
 
-void privilege_task_create(void (*func)())
+static inline int32_t get_pid()
 {
     // look for unused task struct
     uint32_t tid = 0;
     for (tid = 0; tid < MAX_TASK; ++tid) {
-        if (task_pool[tid].task_state == TASK_UNUSED)
-            break;
+        if (task_pool[tid].state == TASK_UNUSED)
+            return tid;
     }
-    if (MAX_TASK == tid)
+    return -1;
+}
+
+void do_exec(void (*func)())
+{
+    task_t *task = (task_t *) get_current();
+    void *ustack = &ustack_pool[task->tid + 1][0];
+
+    // switch to el0
+    asm volatile(
+        "msr     sp_el0, %0\n\t"
+        "msr     elr_el1, %1\n\t"
+        "msr     spsr_el1, %2\n\t"
+        "eret" ::"r"(ustack),
+        "r"(func), "r"(SPSR_EL1_VALUE));
+    __builtin_unreachable();
+}
+
+void privilege_task_create(void (*func)())
+{
+    int32_t tid = get_pid();
+    if (tid < 0)
         return;
 
     task_t *task = &task_pool[tid];
     task->tid = tid;
-    task->task_context.fp = (uint64_t) 0;  // arbitarary value
     task->task_context.sp = (uint64_t) &kstack_pool[tid + 1][0];
     task->task_context.lr = (uint64_t) *func;
-    task->task_state = TASK_RUNNABLE;
-    task->remain = EPOCH;
+    task->state = TASK_RUNNABLE;
+    task->counter = EPOCH;
 
     if (!runqueue_is_full(&runqueue))
         runqueue_push(&runqueue, &task);
@@ -71,65 +93,30 @@ void privilege_task_create(void (*func)())
 
 void schedule()
 {
-    task_t *current, *next, *idle = &task_pool[0];
-    asm volatile("mrs %0, tpidr_el1" : "=r"(current));
-    if (current != idle) {
-        // reset if it's zero
-        if (!current->remain) {
-            current->remain = EPOCH;
-        }
+    task_t *current = (task_t *) get_current(),
+           *next = &task_pool[0];  // idle task
+    if (current != next) {
         // push current task into runqueue except idle task
+        if (!current->counter) {
+            current->counter = EPOCH;
+        }
+        current->state = TASK_RUNNABLE;
         runqueue_push(&runqueue, &current);
     }
-    if (runqueue_is_empty(&runqueue)) {
-        next = idle;
-    } else {
+    if (!runqueue_is_empty(&runqueue)) {
         runqueue_pop(&runqueue, &next);
     }
+    next->state = TASK_RUNNING;
     context_switch(next);
 }
 
-static inline void reschedule()
+void reschedule()
 {
-    task_t *current;
-    asm volatile("mrs %0, tpidr_el1" : "=r"(current));
-    if (!current->remain) {
-        uart_printf("task %d yield cpu...\n", current->tid);
+    task_t *current = (task_t *) get_current();
+    if (0 >= current->counter) {
         schedule();
+        enable_irq();
     }
-}
-
-void task1()
-{
-    while (1) {
-        uart_printf("1...\n");
-        for (int i = 0; i < (1 << 26); ++i)
-            asm("nop");
-        reschedule();
-    }
-    __builtin_unreachable();
-}
-
-void task2()
-{
-    while (1) {
-        uart_printf("2...\n");
-        for (int i = 0; i < (1 << 26); ++i)
-            asm("nop");
-        reschedule();
-    }
-    __builtin_unreachable();
-}
-
-void task3()
-{
-    while (1) {
-        uart_printf("3...\n");
-        for (int i = 0; i < (1 << 26); ++i)
-            asm("nop");
-        reschedule();
-    }
-    __builtin_unreachable();
 }
 
 void runqueue_init(runqueue_t *rq)

@@ -1,7 +1,9 @@
 #include "fb.h"
 #include "irq.h"
+#include "peripherals/timer.h"
 #include "peripherals/uart.h"
 #include "sched.h"
+#include "task.h"
 
 void main()
 {

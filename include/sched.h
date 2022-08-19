@@ -4,12 +4,13 @@
 #define THREAD_CPU_CONTEXT 0
 #define MAX_TASK (1 << 6)
 #define KSTACK_SIZE (1 << 12)
+#define USTACK_SIZE (1 << 12)
 
 #ifndef __ASSEMBLER__
 
 #include "types.h"
 
-enum task_state { TASK_UNUSED, TASK_RUNNABLE, TASK_RUNNING };
+typedef enum { TASK_UNUSED, TASK_RUNNABLE, TASK_RUNNING } task_state;
 
 struct task_context {
     uint64_t x19;
@@ -30,20 +31,20 @@ struct task_context {
 typedef struct task_struct {
     struct task_context task_context;
     uint64_t tid;
-    uint64_t task_state;
-    uint64_t cpu_state;
-    uint64_t remain;
+    task_state state;
+    uint64_t counter;
 } task_t;
 
 extern task_t *get_current();
 extern void switch_to(task_t *, task_t *);
+extern void enable_irq();
+extern void disable_irq();
 void init_task();
+void do_exec(void (*)());
 void privilege_task_create(void (*)());
 void context_switch(task_t *);
 void schedule();
-void task1();
-void task2();
-void task3();
+void reschedule();
 
 #endif
 #endif

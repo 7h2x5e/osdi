@@ -65,7 +65,7 @@ void local_timer_handler()
 
 void core_timer_enable()
 {
-    register uint32_t enable = 1, expired_period = EXPIRE_PERIOD >> 4;
+    register uint32_t enable = 1, expired_period = EXPIRE_PERIOD;
     // enable timer
     asm volatile("msr cntp_ctl_el0, %0" ::"r"(enable));
     // set expired time
@@ -85,14 +85,12 @@ void core_timer_disable()
 
 void core_timer_handler()
 {
-    task_t *current;
+    task_t *current = (task_t *) get_current();
     register uint32_t expired_period = EXPIRE_PERIOD;
     // set expired time
     asm volatile(
-        "msr cntp_tval_el0, %[expire_period]\n\t"
-        "mrs %[task_t], tpidr_el1"
-        : [task_t] "=r"(current)
-        : [expire_period] "r"(expired_period));
-    if (current->remain > 0)
-        --current->remain;
+        "msr cntp_tval_el0, %[expire_period]\n\t" ::[expire_period] "r"(
+            expired_period));
+    if (current->counter > 0)
+        --current->counter;
 }

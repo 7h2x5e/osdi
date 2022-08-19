@@ -53,6 +53,7 @@
 	ldp	x30, x21, [sp, #16 * 15]
 
 	.if	\el == 0
+	bl  reschedule
 	msr	sp_el0, x21
 	.endif /* \el == 0 */
 
