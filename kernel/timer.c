@@ -1,7 +1,8 @@
-#include "peripherals/timer.h"
-#include "peripherals/uart.h"
-#include "sched.h"
-#include "types.h"
+#include <include/irq.h>
+#include <include/peripherals/timer.h>
+#include <include/printk.h>
+#include <include/task.h>
+#include <include/types.h>
 
 static int system_timer_jiffies;
 static int arm_timer_jiffies;
@@ -17,7 +18,7 @@ void sys_timer_handler()
 {
     *SYSTEM_TIMER_COMPARE1 = *SYSTEM_TIMER_CLO + 2500000U;
     *SYSTEM_TIMER_CS |= SYSTEM_TIMER_CS_M1;
-    uart_printf("system timer jiffies: %d\n", system_timer_jiffies++);
+    printk("system timer jiffies: %d\n", system_timer_jiffies++);
 }
 
 void sys_timer_disable()
@@ -36,7 +37,7 @@ void arm_timer_init()
 void arm_timer_hanler()
 {
     *ARM_TIMER_IRQ_CLR = 1;
-    uart_printf("arm timer jiffies: %d\n", arm_timer_jiffies++);
+    printk("arm timer jiffies: %d\n", arm_timer_jiffies++);
 }
 
 void arm_timer_disable()
@@ -60,7 +61,7 @@ void local_timer_disable()
 void local_timer_handler()
 {
     *LOCAL_TIMER_IRQ_CLR = 0xc0000000;  // clear interrupt and reload.
-    uart_printf("local timer jiffies: %d\n", local_timer_jiffies++);
+    printk("local timer jiffies: %d\n", local_timer_jiffies++);
 }
 
 void core_timer_enable()
@@ -85,12 +86,21 @@ void core_timer_disable()
 
 void core_timer_handler()
 {
-    task_t *current = (task_t *) get_current();
-    register uint32_t expired_period = EXPIRE_PERIOD;
     // set expired time
     asm volatile(
         "msr cntp_tval_el0, %[expire_period]\n\t" ::[expire_period] "r"(
-            expired_period));
+            EXPIRE_PERIOD));
+    task_t *current = (task_t *) get_current();
     if (current->counter > 0)
         --current->counter;
+}
+
+int64_t do_init_timers()
+{
+    sys_timer_init();
+    arm_timer_init();
+    local_timer_enable();
+    core_timer_enable();
+    enable_irq();
+    return 0;
 }

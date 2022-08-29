@@ -1,8 +1,9 @@
 #ifndef TIMER_H
 #define TIMER_H
 
-#include "peripherals/base.h"
-#include "peripherals/irq.h"
+#include <include/peripherals/base.h>
+#include <include/peripherals/irq.h>
+#include <include/types.h>
 
 // System timer, not emulated by qemu
 #define SYSTEM_TIMER_BASE (MMIO_BASE + 0x00003000)
@@ -64,12 +65,6 @@
     ((volatile unsigned int *) (LOCAL_PERIPHERAL_BASE + 0x0000004C))
 #define EXPIRE_PERIOD 0xfffffff
 
-// Enable bit
-#define _SYS_TIMER 1
-#define _ARM_TIMER 1
-#define _LOCAL_TIMER 1
-#define _CORE_TIMER 1
-
 void sys_timer_init();
 void sys_timer_handler();
 void sys_timer_disable();
@@ -82,5 +77,6 @@ void local_timer_handler();
 void core_timer_enable();
 void core_timer_disable();
 void core_timer_handler();
+int64_t do_init_timers();
 
 #endif

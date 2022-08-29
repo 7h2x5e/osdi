@@ -1,8 +1,8 @@
 #ifndef IRQ_H
 #define IRQ_H
 
-#include "types.h"
-
-void toggle_irq(uint8_t);
+void enable_irq();
+void disable_irq();
+void irq_handler();
 
 #endif

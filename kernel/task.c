@@ -1,37 +1,15 @@
-#include "sched.h"
-#include "asm/sysregs.h"
-#include "types.h"
+#include <include/asm/sysregs.h>
+#include <include/irq.h>
+#include <include/printk.h>
+#include <include/sched.h>
+#include <include/task.h>
+#include <include/types.h>
+#include <include/utask.h>
 
-/* runqueue ring buffer */
-#define RUNQUEUE_SIZE MAX_TASK  // must be power of 2
-typedef struct runqueue_t {
-    task_t *buf[RUNQUEUE_SIZE];
-    size_t head, tail;
-    size_t size, mask;
-} runqueue_t;
-
-void runqueue_init(runqueue_t *);
-void runqueue_reset(runqueue_t *);
-size_t runqueue_size(const runqueue_t *);
-bool runqueue_is_full(const runqueue_t *);
-bool runqueue_is_empty(const runqueue_t *);
-void runqueue_push(runqueue_t *, task_t **);
-void runqueue_pop(runqueue_t *, task_t **);
-
-static runqueue_t runqueue;
-static task_t task_pool[MAX_TASK] __attribute__((section(".kstack")));
-static uint8_t kstack_pool[MAX_TASK][KSTACK_SIZE]
-    __attribute__((section(".kstack")));
-static uint8_t ustack_pool[MAX_TASK][USTACK_SIZE]
-    __attribute__((section(".ustack")));
-
-#define EPOCH 2
-
-void context_switch(task_t *next)
-{
-    task_t *prev = (task_t *) get_current();
-    switch_to(prev, next);
-}
+runqueue_t runqueue;
+task_t task_pool[MAX_TASK] __attribute__((section(".kstack")));
+uint8_t kstack_pool[MAX_TASK][KSTACK_SIZE] __attribute__((section(".kstack")));
+uint8_t ustack_pool[MAX_TASK][USTACK_SIZE] __attribute__((section(".ustack")));
 
 void init_task()
 {
@@ -41,7 +19,7 @@ void init_task()
         task_pool[i].state = TASK_UNUSED;
     }
 
-    // initialize main() as idls task
+    // initialize main() as idle task
     task_t *self = &task_pool[0];
     self->tid = 0;
     self->state = TASK_RUNNING;
@@ -85,38 +63,10 @@ void privilege_task_create(void (*func)())
     task->task_context.sp = (uint64_t) &kstack_pool[tid + 1][0];
     task->task_context.lr = (uint64_t) *func;
     task->state = TASK_RUNNABLE;
-    task->counter = EPOCH;
+    task->counter = TASK_EPOCH;
 
     if (!runqueue_is_full(&runqueue))
         runqueue_push(&runqueue, &task);
-}
-
-void schedule()
-{
-    task_t *current = (task_t *) get_current(),
-           *next = &task_pool[0];  // idle task
-    if (current != next) {
-        // push current task into runqueue except idle task
-        if (!current->counter) {
-            current->counter = EPOCH;
-        }
-        current->state = TASK_RUNNABLE;
-        runqueue_push(&runqueue, &current);
-    }
-    if (!runqueue_is_empty(&runqueue)) {
-        runqueue_pop(&runqueue, &next);
-    }
-    next->state = TASK_RUNNING;
-    context_switch(next);
-}
-
-void reschedule()
-{
-    task_t *current = (task_t *) get_current();
-    if (0 >= current->counter) {
-        schedule();
-        enable_irq();
-    }
 }
 
 void runqueue_init(runqueue_t *rq)
@@ -160,4 +110,31 @@ void runqueue_pop(runqueue_t *rq, task_t **t)
     // assume buffer isn't empty
     *t = rq->buf[rq->head++];
     rq->head &= rq->mask;
+}
+
+void task1()
+{
+    while (1) {
+        printk("1...\n");
+        for (int i = 0; i < (1 << 26); ++i)
+            asm("nop");
+        reschedule();
+        enable_irq();  // Enable IRQ if it returns from IRQ handler
+    }
+}
+
+void task2()
+{
+    while (1) {
+        printk("2...\n");
+        for (int i = 0; i < (1 << 26); ++i)
+            asm("nop");
+        reschedule();
+        enable_irq();
+    }
+}
+
+void task3()
+{
+    do_exec(&utask3);
 }

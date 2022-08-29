@@ -1,7 +1,7 @@
 #ifndef GPIO_H
 #define GPIO_H
 
-#include "peripherals/base.h"
+#include <include/peripherals/base.h>
 
 #define GPFSEL0 ((volatile unsigned int *) (MMIO_BASE + 0x00200000))
 #define GPFSEL1 ((volatile unsigned int *) (MMIO_BASE + 0x00200004))

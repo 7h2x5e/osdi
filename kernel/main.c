@@ -1,13 +1,13 @@
-#include "fb.h"
-#include "irq.h"
-#include "peripherals/timer.h"
-#include "peripherals/uart.h"
-#include "sched.h"
-#include "task.h"
+#include <include/fb.h>
+#include <include/irq.h>
+#include <include/peripherals/timer.h>
+#include <include/peripherals/uart.h>
+#include <include/sched.h>
+#include <include/task.h>
 
 void main()
 {
-    uart_init(115200, 0);
+    uart_init(115200, UART_POLLING_MODE);
     uart_flush();
     fb_init();
     fb_showpicture();
@@ -20,5 +20,4 @@ void main()
     while (1) {
         schedule();
     }
-    __builtin_unreachable();
 }

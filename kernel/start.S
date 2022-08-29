@@ -1,7 +1,6 @@
 .section ".text.boot"
 
-#include "mm.h"
-#include "asm/sysregs.h"
+#include <include/asm/sysregs.h>
 
 .global _start
 _start:
@@ -70,3 +69,10 @@ el0_init:
     bl      main
     // for failsafe, halt this core too
     b       proc_hang
+
+.globl memzero
+memzero:
+	str xzr, [x0], #8
+	subs x1, x1, #8
+	b.gt memzero
+	ret

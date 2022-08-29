@@ -1,23 +1,25 @@
 #ifndef UART_H
 #define UART_H
 
-#include "types.h"
+#include <include/types.h>
 
 #define EOF -1
 #define UART_IRQ (1 << 25)
+
 typedef struct ringbuf_t ringbuf_t;
 
-void uart_init(unsigned int, bool);
-ssize_t uart_read(ringbuf_t *, void *, size_t);
-ssize_t uart_write(ringbuf_t *, void *, size_t);
+/*
+ * UART_INTERRUPT_MODE: Get/put character from/to uart buffer
+ *   UART_POLLING_MODE: Get/put character from/to uart peripheral directly
+ */
+enum { UART_POLLING_MODE = false, UART_INTERRUPT_MODE = true };
 
-int uart_getc();
-int uart_getc_raw();
-int uart_putc(unsigned char);
-char *uart_fgets(char *, size_t);
-ssize_t uart_fputs(const char *);
-void uart_printf(char *str, ...);
+void uart_init(unsigned int, bool);
 void uart_flush();
 void uart_handler();
+
+/* uart_read & uart_write are used in system call */
+ssize_t _uart_read(void *, size_t);
+ssize_t _uart_write(void *, size_t);
 
 #endif

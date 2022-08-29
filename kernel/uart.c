@@ -1,8 +1,8 @@
-#include "c_string.h"
-#include "peripherals/gpio.h"
-#include "peripherals/irq.h"
-#include "peripherals/mbox.h"
-#include "types.h"
+#include <include/peripherals/gpio.h>
+#include <include/peripherals/irq.h>
+#include <include/peripherals/mbox.h>
+#include <include/peripherals/uart.h>
+#include <include/types.h>
 
 /* PL011 UART registers */
 #define UART0_DR \
@@ -30,8 +30,7 @@ typedef struct ringbuf_t {
 } ringbuf_t;
 
 static ringbuf_t PL011_TX_QUEUE, PL011_RX_QUEUE;
-static bool mode;  // 0 = polling, 1 = interrupt
-enum { POLLING_MODE = false, INTERRUPT_MODE = true };
+static bool mode;
 
 void ringbuf_init(ringbuf_t *);
 void ringbuf_reset(ringbuf_t *);
@@ -170,7 +169,7 @@ void uart_init(unsigned int baudrate, bool _mode)
     // deal with qemu bug
     uart_write_polling(0);
 
-    if (INTERRUPT_MODE == (mode = _mode)) {
+    if (UART_INTERRUPT_MODE == (mode = _mode)) {
         // enable UART interrupt
         ringbuf_init(&PL011_TX_QUEUE);
         ringbuf_init(&PL011_RX_QUEUE);
@@ -198,10 +197,11 @@ static inline char uart_read_polling()
     return (char) (*UART0_DR);
 }
 
-ssize_t uart_read(ringbuf_t *rb, void *dst, size_t count)
+ssize_t _uart_read(void *dst, size_t count)
 {
+    ringbuf_t *rb = &PL011_RX_QUEUE;
     ssize_t num = 0;
-    if (INTERRUPT_MODE == mode) {
+    if (UART_INTERRUPT_MODE == mode) {
         // Non-blocking read. Attempts to read up to 'count' bytes.
         while (!ringbuf_is_empty(rb) && num < count) {
             ringbuf_pop(rb, dst++);
@@ -217,10 +217,11 @@ ssize_t uart_read(ringbuf_t *rb, void *dst, size_t count)
     return count;
 }
 
-ssize_t uart_write(ringbuf_t *rb, void *src, size_t count)
+ssize_t _uart_write(void *src, size_t count)
 {
+    ringbuf_t *rb = &PL011_TX_QUEUE;
     ssize_t num = 0;
-    if (INTERRUPT_MODE == mode) {
+    if (UART_INTERRUPT_MODE == mode) {
         // Non-blocking write. Attempts to write up to 'count' bytes.
         while (!ringbuf_is_full(rb) && num < count) {
             ringbuf_push(rb, src++);
@@ -234,90 +235,6 @@ ssize_t uart_write(ringbuf_t *rb, void *src, size_t count)
         uart_write_polling(((char *) src)[num++]);
     }
     return count;
-}
-
-
-int uart_getc()
-{
-    // Blocking read
-    // Reads a character from ring buffer and returns it as an
-    // unsigned char cast to an int.
-    unsigned char buf[1];
-    while (1 != uart_read(&PL011_RX_QUEUE, buf, 1)) {
-    }
-    buf[0] = (buf[0] == '\r') ? '\n' : buf[0];
-    // Echo back with the character.
-    uart_putc(buf[0]);
-    return (int) buf[0];
-}
-
-int uart_getc_raw()
-{
-    // Blocking read
-    // Reads a character from ring buffer and returns it as an
-    // unsigned char cast to an int.
-    unsigned char buf[1];
-    while (1 != uart_read(&PL011_RX_QUEUE, buf, 1)) {
-    }
-    return (int) buf[0];
-}
-
-int uart_putc(unsigned char c)
-{
-    // Blocking write
-    // Write a character to ring buffer and return the character
-    // written as an unsigned char cast to an int.
-    if (c == '\n') {
-        while (1 != uart_write(&PL011_TX_QUEUE, &(char[1]){'\r'}, 1)) {
-        }
-    }
-    while (1 != uart_write(&PL011_TX_QUEUE, &(char[1]){c}, 1)) {
-    }
-    return (int) c;
-}
-
-char *uart_fgets(char *buf, size_t len)
-{
-    // Attempts to read up to one less than 'len' characters.
-    // Reading stops after a newline. If a newline is read, it
-    // is stored into the buffer. A terminating null byte '\0'
-    // is stored after the last character in the buffer.
-    // Return 'buf' on success or NULL on error.
-    size_t idx = 0;
-    char c;
-    if (len < 2)
-        return NULL;
-    do {
-        c = uart_getc();
-        buf[idx++] = c;
-    } while (c != '\n' && idx < (len - 1));
-    buf[idx] = '\0';
-    return buf;
-}
-
-ssize_t uart_fputs(const char *buf)
-{
-    // Attempts to write the string 'buf' without its terminating
-    // null byte. Return a nonnegative number on success, or EOF
-    // on error.
-    size_t count = 0;
-    while (buf[count]) {
-        uart_putc(buf[count++]);
-    }
-    return count;
-}
-
-void uart_printf(char *fmt, ...)
-{
-    __builtin_va_list args;
-    __builtin_va_start(args, fmt);
-
-    extern char _end;
-    char *dst = &_end;
-    vsprintf(dst, fmt, args);
-    __builtin_va_end(args);
-
-    uart_fputs(dst);
 }
 
 void uart_flush()
