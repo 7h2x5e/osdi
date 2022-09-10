@@ -48,7 +48,5 @@ void sync_handler(struct TrapFrame *tf)
 
 void svc_handler(struct TrapFrame *tf)
 {
-    enable_irq();
     syscall_handler(tf);
-    disable_irq();
 }
