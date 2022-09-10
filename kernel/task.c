@@ -40,6 +40,8 @@ static inline int32_t get_pid()
 void do_exec(void (*func)())
 {
     task_t *task = (task_t *) get_current();
+    // stack address grows towards lower memory address, so we use address of
+    // top of stack of next user task as initial stack address.
     void *ustack = &ustack_pool[task->tid + 1][0];
 
     // switch to el0
