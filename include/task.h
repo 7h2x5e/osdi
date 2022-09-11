@@ -2,7 +2,7 @@
 #define _TASK_H
 
 #define THREAD_CPU_CONTEXT 0
-#define TASK_EPOCH 2
+#define TASK_EPOCH 1
 
 #ifndef __ASSEMBLER__
 
