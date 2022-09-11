@@ -1,6 +1,7 @@
 #include <include/exc.h>
 #include <include/peripherals/uart.h>
 #include <include/syscall.h>
+#include <include/task.h>
 #include <include/types.h>
 #include <include/utils.h>
 
@@ -25,8 +26,11 @@ void syscall_handler(struct TrapFrame *tf)
     case SYS_uart_write:
         ret = sys_uart_write((void *) tf->x[0], (size_t) tf->x[1]);
         break;
+    case SYS_get_taskid:
+        ret = sys_get_taskid();
+        break;
     case SYS_exec:
-        ret = sys_exec();
+        ret = sys_exec(tf);
         break;
     case SYS_fork:
         ret = sys_fork();
@@ -64,9 +68,22 @@ int64_t sys_uart_write(void *buf, size_t size)
     return (int64_t) _uart_write(buf, size);
 }
 
-int64_t sys_exec()
+int64_t sys_get_taskid()
 {
-    // to do
+    task_t *task = get_current();
+    return (int64_t) task->tid;
+}
+
+int64_t sys_exec(struct TrapFrame *tf)
+{
+    task_t *task = get_current();
+    void *ustack = &ustack_pool[task->tid + 1][0];
+    /*
+     * User task will resume from 'func' not where to call
+     * exec and use new stack pointer.
+     */
+    tf->elr_el1 = tf->x[0];
+    tf->sp = (uint64_t) ustack;
     return 0;
 }
 
