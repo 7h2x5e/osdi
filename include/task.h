@@ -6,6 +6,8 @@
 
 #ifndef __ASSEMBLER__
 
+#include <include/exc.h>
+#include <include/list.h>
 #include <include/types.h>
 
 /* runqueue ring buffer */
@@ -16,7 +18,12 @@
 #define KSTACK_SIZE (1 << 12)
 #define USTACK_SIZE (1 << 12)
 
-typedef enum { TASK_UNUSED, TASK_RUNNABLE, TASK_RUNNING } task_state;
+typedef enum {
+    TASK_UNUSED,
+    TASK_RUNNABLE,
+    TASK_RUNNING,
+    TASK_ZOMBIE
+} task_state;
 
 struct task_context {
     uint64_t x19;
@@ -36,9 +43,10 @@ struct task_context {
 
 typedef struct task_struct {
     struct task_context task_context;
-    uint64_t tid;
+    uint32_t tid;
     task_state state;
     uint64_t counter;
+    struct list_head node;
 } task_t;
 
 typedef struct runqueue_t {
@@ -56,17 +64,24 @@ void runqueue_push(runqueue_t *, task_t **);
 void runqueue_pop(runqueue_t *, task_t **);
 
 extern runqueue_t runqueue;
-extern task_t task_pool[MAX_TASK];
-extern uint8_t kstack_pool[MAX_TASK][KSTACK_SIZE];
-extern uint8_t ustack_pool[MAX_TASK][USTACK_SIZE];
+extern struct list_head zombie_list;
 
-extern task_t *get_current();
+extern const task_t *get_current();
+task_t *get_task_by_id(uint32_t);
 void init_task();
+void *get_kstack_by_id(uint32_t);
+void *get_ustack_by_id(uint32_t);
+void *get_kstacktop_by_id(uint32_t);
+void *get_ustacktop_by_id(uint32_t);
+uint32_t do_get_taskid();
 void do_exec(void (*)());
-void privilege_task_create(void (*)());
+int64_t do_fork(struct TrapFrame *);
+void do_exit();
+int64_t privilege_task_create(void (*)());
 void task1();
 void task2();
 void task3();
+void zombie_reaper();
 
 #endif
 #endif

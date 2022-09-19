@@ -12,6 +12,7 @@ void main()
     fb_init();
     fb_showpicture();
     init_task();
+    privilege_task_create(&zombie_reaper);
     privilege_task_create(&task1);
     privilege_task_create(&task2);
     privilege_task_create(&task3);

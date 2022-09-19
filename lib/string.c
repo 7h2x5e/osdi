@@ -24,3 +24,40 @@ int strlen(const char *str)
         ++count;
     return count;
 }
+
+/* copied from pdoane/osdev */
+void *memcpy(void *dst, const void *src, size_t n)
+{
+    uint8_t *p = (uint8_t *) src;
+    uint8_t *q = (uint8_t *) dst;
+    uint8_t *end = p + n;
+
+    while (p != end) {
+        *q++ = *p++;
+    }
+
+    return dst;
+}
+
+
+void *memmove(void *dst, const void *src, size_t n)
+{
+    uint8_t *p = (uint8_t *) src;
+    uint8_t *q = (uint8_t *) dst;
+    uint8_t *end = p + n;
+
+    if (q > p && q < end) {
+        p = end;
+        q += n;
+
+        while (p != src) {
+            *--q = *--p;
+        }
+    } else {
+        while (p != end) {
+            *q++ = *p++;
+        }
+    }
+
+    return dst;
+}

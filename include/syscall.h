@@ -24,7 +24,7 @@ int64_t cancel_reset();
 int64_t get_timestamp(struct TimeStamp *);
 int64_t uart_read(void *, size_t);
 int64_t uart_write(void *, size_t);
-uint64_t get_taskid();
+uint32_t get_taskid();
 int64_t exec(void (*)());
 int64_t fork();
 int64_t exit();
@@ -37,7 +37,7 @@ int64_t sys_uart_read(void *, size_t);
 int64_t sys_uart_write(void *, size_t);
 int64_t sys_get_taskid();
 int64_t sys_exec(struct TrapFrame *);
-int64_t sys_fork();
+int64_t sys_fork(struct TrapFrame *);
 int64_t sys_exit();
 
 #endif

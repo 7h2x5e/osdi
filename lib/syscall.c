@@ -114,7 +114,7 @@ SYSCALL_ARG0(cancel_reset, int64_t)
 SYSCALL_ARG1(get_timestamp, int64_t, struct TimeStamp *)
 SYSCALL_ARG2(uart_read, int64_t, void *, size_t)
 SYSCALL_ARG2(uart_write, int64_t, void *, size_t)
-SYSCALL_ARG0(get_taskid, uint64_t)
+SYSCALL_ARG0(get_taskid, uint32_t)
 int64_t exec(void (*x0)())
 {
     return INTERNAL_SYSCALL(exec, 1, INPUT_ARGS_1);

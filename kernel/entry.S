@@ -161,6 +161,8 @@ el0_irq:
     kernel_entry 0, UNDEFINED
 	mov x0, sp
     bl  irq_handler
+.global ret_to_user
+ret_to_user:	// Forked task will start from here
     kernel_exit 0
 
 el0_sync:

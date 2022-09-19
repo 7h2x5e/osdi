@@ -33,7 +33,7 @@ void syscall_handler(struct TrapFrame *tf)
         ret = sys_exec(tf);
         break;
     case SYS_fork:
-        ret = sys_fork();
+        ret = sys_fork(tf);
         break;
     case SYS_exit:
         ret = sys_exit();
@@ -70,14 +70,13 @@ int64_t sys_uart_write(void *buf, size_t size)
 
 int64_t sys_get_taskid()
 {
-    task_t *task = get_current();
-    return (int64_t) task->tid;
+    return (int64_t) do_get_taskid();
 }
 
 int64_t sys_exec(struct TrapFrame *tf)
 {
-    task_t *task = get_current();
-    void *ustack = &ustack_pool[task->tid + 1][0];
+    const task_t *task = get_current();
+    void *ustack = get_ustacktop_by_id(task->tid);
     /*
      * User task will resume from 'func' not where to call
      * exec and use new stack pointer.
@@ -87,14 +86,14 @@ int64_t sys_exec(struct TrapFrame *tf)
     return 0;
 }
 
-int64_t sys_fork()
+int64_t sys_fork(struct TrapFrame *tf)
 {
-    // to do
-    return 0;
+    return do_fork(tf);
 }
 
 int64_t sys_exit()
 {
-    // to do
+    /* do_exit() does not return */
+    do_exit();
     return 0;
 }
