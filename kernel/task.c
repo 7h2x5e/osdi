@@ -236,27 +236,29 @@ void task3()
     do_exec(&utask3);
 }
 
-static inline void delay(int count)
+void user_test()
 {
-    for (int i = 0; i < count; ++i)
-        asm("nop");
+    do_exec(test);
 }
 
-void foo()
+__attribute__((optimize("O0"))) static void delay(uint64_t count)
 {
-    while (1) {
-        printk("Task id: %d\n", do_get_taskid());
-        delay(100000000);
-        reschedule();
-    }
+    for (uint64_t i = 0; i < count; ++i)
+        asm("nop");
 }
 
 void idle()
 {
     while (1) {
+        if (runqueue_is_empty(&runqueue)) {
+            break;
+        }
         reschedule();
         delay(100000000);
     }
+    printk("Test finished\n");
+    while (1)
+        ;
 }
 
 void zombie_reaper()

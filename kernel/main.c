@@ -12,9 +12,7 @@ void main()
     fb_init();
     fb_showpicture();
     init_task();
-    for (int i = 0; i < 3; ++i) {  // N should > 2
-        privilege_task_create(foo);
-    }
+    privilege_task_create(&user_test);
     core_timer_enable();
     enable_irq();
     idle();
