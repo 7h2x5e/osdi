@@ -12,13 +12,10 @@ void main()
     fb_init();
     fb_showpicture();
     init_task();
-    privilege_task_create(&zombie_reaper);
-    privilege_task_create(&task1);
-    privilege_task_create(&task2);
-    privilege_task_create(&task3);
+    for (int i = 0; i < 3; ++i) {  // N should > 2
+        privilege_task_create(foo);
+    }
     core_timer_enable();
     enable_irq();
-    while (1) {
-        schedule();
-    }
+    idle();
 }

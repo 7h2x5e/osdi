@@ -236,6 +236,29 @@ void task3()
     do_exec(&utask3);
 }
 
+static inline void delay(int count)
+{
+    for (int i = 0; i < count; ++i)
+        asm("nop");
+}
+
+void foo()
+{
+    while (1) {
+        printk("Task id: %d\n", do_get_taskid());
+        delay(100000000);
+        reschedule();
+    }
+}
+
+void idle()
+{
+    while (1) {
+        reschedule();
+        delay(100000000);
+    }
+}
+
 void zombie_reaper()
 {
     while (1) {

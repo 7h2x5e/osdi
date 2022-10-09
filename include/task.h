@@ -81,6 +81,8 @@ int64_t privilege_task_create(void (*)());
 void task1();
 void task2();
 void task3();
+void foo();
+void idle();
 void zombie_reaper();
 
 #endif
