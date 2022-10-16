@@ -1,5 +1,6 @@
 #include <include/exc.h>
 #include <include/peripherals/uart.h>
+#include <include/signal.h>
 #include <include/syscall.h>
 #include <include/task.h>
 #include <include/types.h>
@@ -37,6 +38,9 @@ void syscall_handler(struct TrapFrame *tf)
         break;
     case SYS_exit:
         ret = sys_exit();
+        break;
+    case SYS_kill:
+        ret = sys_kill((pid_t) tf->x[0], (int32_t) tf->x[1]);
         break;
     default:
     }
@@ -96,4 +100,9 @@ int64_t sys_exit()
     /* do_exit() does not return */
     do_exit();
     return 0;
+}
+
+int64_t sys_kill(pid_t pid, int32_t sig)
+{
+    return (int64_t) do_kill(pid, sig);
 }

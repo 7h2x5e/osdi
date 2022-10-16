@@ -1,3 +1,4 @@
+#include <include/signal.h>
 #include <include/stdio.h>
 #include <include/syscall.h>
 #include <include/types.h>
@@ -47,25 +48,28 @@ void foo()
     exit();
 }
 
-void test()
+void utest1()
 {
-    int cnt = 1;
-    if (fork() == 0) {
-        /* child process */
-        fork();
-        delay(100000000);
-        fork();
-        while (cnt < 10) {
-            printf("Task id: %d, cnt: %d\n", get_taskid(), cnt);
-            delay(100000000);
-            ++cnt;
-        }
-        exit();
-        printf("Should not be printed\n");
-    } else {
-        /* parent process */
-        printf("Task %d before exec, cnt address 0x%h, cnt value %d\n",
-               get_taskid(), &cnt, cnt);
-        exec(foo);
-    }
+    char buf[256];
+    int n;
+    do {
+        printf("[PID %d] Read up to 1 bytes...\n", get_taskid());
+        delay(1000000000);
+        n = uart_read(buf, 1);
+    } while (n < 1);
+    printf("Will not reach here if the process is killed by signal\n", n);
+    exit();
+}
+
+void utest2()
+{
+    int success;
+    do {
+        printf("[PID %d] Send signal to kill pid 2 process... %s!\n",
+               get_taskid(),
+               (success = kill(2, SIGKILL)) == 0 ? "succeed"
+                                                 : "process do not exist");
+        delay(1000000000);
+    } while (!success);
+    exit();
 }

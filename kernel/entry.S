@@ -36,6 +36,7 @@ stp x24, x25, [sp, #16 * 17]
 .macro	kernel_exit, el
 .if	\el == 0
 bl  reschedule
+bl  do_signal
 .endif /* \el == 0 */
 
 ldp	x24, x25, [sp, #16 * 17]

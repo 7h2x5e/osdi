@@ -2,6 +2,8 @@
 #define SYSCALL_H
 
 #include <include/exc.h>
+#include <include/signal.h>
+#include <include/task.h>
 #include <include/utils.h>
 
 enum {
@@ -13,7 +15,8 @@ enum {
     SYS_get_taskid,
     SYS_exec,
     SYS_fork,
-    SYS_exit
+    SYS_exit,
+    SYS_kill
 };
 
 void syscall_handler(struct TrapFrame *tf);
@@ -28,6 +31,7 @@ uint32_t get_taskid();
 int64_t exec(void (*)());
 int64_t fork();
 int64_t exit();
+int32_t kill(pid_t, int32_t);
 
 /* wrapper */
 int64_t sys_reset(uint64_t);
@@ -39,5 +43,6 @@ int64_t sys_get_taskid();
 int64_t sys_exec(struct TrapFrame *);
 int64_t sys_fork(struct TrapFrame *);
 int64_t sys_exit();
+int64_t sys_kill(pid_t, int32_t);
 
 #endif

@@ -2,6 +2,7 @@
 #define _UTASK_H
 
 void utask3();
-void test();
+void utest1();
+void utest2();
 
 #endif

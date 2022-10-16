@@ -136,6 +136,8 @@ int64_t do_fork(struct TrapFrame *tf)
     new_task->task_context.lr = (uint64_t) ret_to_user;
     new_task->task_context.sp = (uint64_t) tf_new;
     new_task->state = TASK_RUNNABLE;
+    new_task->sig_blocked = cur_task->sig_blocked;
+    new_task->sig_pending = cur_task->sig_pending;
 
     return new_task_id;
 }
@@ -161,6 +163,8 @@ int64_t privilege_task_create(void (*func)())
     task->task_context.lr = (uint64_t) *func;
     task->state = TASK_RUNNABLE;
     task->counter = TASK_EPOCH;
+    task->sig_pending = 0;
+    task->sig_blocked = 0;
     runqueue_push(&runqueue, &task);
 
     return (int64_t) tid;
@@ -236,9 +240,14 @@ void task3()
     do_exec(&utask3);
 }
 
-void user_test()
+void user_test1()
 {
-    do_exec(test);
+    do_exec(&utest1);
+}
+
+void user_test2()
+{
+    do_exec(&utest2);
 }
 
 __attribute__((optimize("O0"))) static void delay(uint64_t count)

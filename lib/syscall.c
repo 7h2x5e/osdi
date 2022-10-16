@@ -1,4 +1,5 @@
 #include <include/syscall.h>
+#include <include/task.h>
 #include <include/types.h>
 
 #define ASM_ARGS_0
@@ -121,3 +122,4 @@ int64_t exec(void (*x0)())
 }
 SYSCALL_ARG0(fork, int64_t)
 SYSCALL_ARG0(exit, int64_t)
+SYSCALL_ARG2(kill, int32_t, pid_t, int32_t)

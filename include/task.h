@@ -41,11 +41,16 @@ struct task_context {
     uint64_t sp;
 };
 
+typedef uint32_t pid_t;
+typedef uint32_t sigvec_t;
+
 typedef struct task_struct {
     struct task_context task_context;
-    uint32_t tid;
+    pid_t tid;
     task_state state;
     uint64_t counter;
+    sigvec_t sig_pending;
+    sigvec_t sig_blocked;
     struct list_head node;
 } task_t;
 
@@ -81,7 +86,8 @@ int64_t privilege_task_create(void (*)());
 void task1();
 void task2();
 void task3();
-void user_test();
+void user_test1();
+void user_test2();
 void idle();
 void zombie_reaper();
 
