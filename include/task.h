@@ -22,7 +22,8 @@ typedef enum {
     TASK_UNUSED,
     TASK_RUNNABLE,
     TASK_RUNNING,
-    TASK_ZOMBIE
+    TASK_ZOMBIE,
+    TASK_BLOCKED
 } task_state;
 
 struct task_context {
@@ -68,7 +69,7 @@ bool runqueue_is_empty(const runqueue_t *);
 void runqueue_push(runqueue_t *, task_t **);
 void runqueue_pop(runqueue_t *, task_t **);
 
-extern runqueue_t runqueue;
+extern runqueue_t runqueue, waitqueue;
 extern struct list_head zombie_list;
 
 extern const task_t *get_current();

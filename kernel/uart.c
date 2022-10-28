@@ -1,7 +1,10 @@
+#include <include/irq.h>
 #include <include/peripherals/gpio.h>
 #include <include/peripherals/irq.h>
 #include <include/peripherals/mbox.h>
 #include <include/peripherals/uart.h>
+#include <include/sched.h>
+#include <include/task.h>
 #include <include/types.h>
 
 /* PL011 UART registers */
@@ -199,16 +202,48 @@ static inline char uart_read_polling()
 
 ssize_t _uart_read(void *dst, size_t count)
 {
+    if (!count)
+        return count;
+
     ringbuf_t *rb = &PL011_RX_QUEUE;
     ssize_t num = 0;
     if (UART_INTERRUPT_MODE == mode) {
-        // Non-blocking read. Attempts to read up to 'count' bytes.
-        while (!ringbuf_is_empty(rb) && num < count) {
-            ringbuf_pop(rb, dst++);
-            num++;
+        /*
+         * Non-blocking read. Read up to 'count' bytes
+         * If there isn't enough data in buffer, we put task to the waitqueue.
+         */
+        while (true) {
+            /* prevent irq handler from accessing RX ring buffer concurrently */
+            disable_irq();
+            {
+                // Attempts to read up to 'count' bytes.
+                while (!ringbuf_is_empty(rb) && num < count) {
+                    ringbuf_pop(rb, dst++);
+                    num++;
+                }
+                uart_enable_rx_interrupt();
+            }
+            enable_irq();
+
+            if (num >= count) {
+                return num;
+            }
+
+            /*
+             * If don't have enough data, mark the task as TASK_BLOCKED and push
+             * it to waitqueue
+             */
+
+            /* prevent irq handler from accessing wait queue concurrently */
+            disable_irq();
+            {
+                task_t *cur = (task_t *) get_current();
+                cur->state = TASK_BLOCKED;
+                runqueue_push(&waitqueue, &cur);
+            }
+            enable_irq();
+            schedule();
         }
-        uart_enable_rx_interrupt();
-        return num;
     }
     // Blocking read. Read 'count' bytes
     while (num < count) {
@@ -245,14 +280,21 @@ void uart_flush()
     }
 }
 
-void uart_handler()
+/*
+ * @return 0b01 - data has been pushed to RX buffer
+ * @return 0b10 - data has been poped out from TX buffer
+ * @return 0b11 - the above of all
+ */
+int8_t uart_handler()
 {
     uint32_t status = *UART0_MIS;
+    int8_t ret = 0;
 
     if (status & MIS_RXMIS) {
         if (!ringbuf_is_full(&PL011_RX_QUEUE)) {
             uint8_t data = (uint8_t) *UART0_DR;
             ringbuf_push(&PL011_RX_QUEUE, &data);
+            ret |= 1;
         }
         if (ringbuf_is_full(&PL011_RX_QUEUE)) {
             uart_disable_rx_interrupt();
@@ -264,9 +306,11 @@ void uart_handler()
             uint8_t data;
             ringbuf_pop(&PL011_TX_QUEUE, &data);
             *UART0_DR = (uint32_t) data;
+            ret |= 2;
         }
         if (ringbuf_is_empty(&PL011_TX_QUEUE)) {
             uart_disable_tx_interrupt();
         }
     }
+    return ret;
 }

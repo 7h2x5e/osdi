@@ -7,7 +7,7 @@
 #include <include/types.h>
 #include <include/utask.h>
 
-runqueue_t runqueue;
+runqueue_t runqueue, waitqueue;
 struct list_head zombie_list;
 static task_t task_pool[MAX_TASK] __attribute__((section(".kstack")));
 static uint8_t kstack_pool[MAX_TASK][KSTACK_SIZE]
@@ -55,6 +55,7 @@ void *get_ustacktop_by_id(uint32_t id)
 void init_task()
 {
     runqueue_init(&runqueue);
+    runqueue_init(&waitqueue);
     INIT_LIST_HEAD(&zombie_list);
 
     for (uint32_t i = 0; i < MAX_TASK; ++i) {

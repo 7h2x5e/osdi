@@ -4,6 +4,7 @@
 #include <include/peripherals/timer.h>
 #include <include/peripherals/uart.h>
 #include <include/printk.h>
+#include <include/task.h>
 
 void enable_irq()
 {
@@ -18,6 +19,7 @@ void disable_irq()
 void gpu_irq_handler()
 {
     uint32_t gpu_irq1, gpu_irq2;
+    int8_t uart_ret = 0;
     do {
         gpu_irq1 = *IRQ_PENDING_1;
         gpu_irq2 = *IRQ_PENDING_2;
@@ -32,12 +34,27 @@ void gpu_irq_handler()
         if (gpu_irq2) {
             switch (1U << __builtin_ctz(gpu_irq2)) {
             case UART_IRQ:
-                uart_handler();
+                uart_ret |= uart_handler();
                 break;
             default:
             }
         }
     } while (gpu_irq1 || gpu_irq2);
+
+    /*
+     * some data to has been pushed to buffer, so we pop all tasks in
+     * waitqueue back to runqueue
+     * kernel task disable irq when accessing waitqueue or runqueue,
+     * so there doesn't exist any concurrency problem
+     */
+    if (uart_ret & 1) {
+        while (!runqueue_is_empty(&waitqueue)) {
+            task_t *t;
+            runqueue_pop(&waitqueue, &t);
+            t->state = TASK_RUNNABLE;
+            runqueue_push(&runqueue, &t);
+        }
+    }
 }
 
 void irq_handler(struct TrapFrame *tf)
