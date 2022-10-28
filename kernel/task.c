@@ -238,17 +238,7 @@ void task2()
 
 void task3()
 {
-    do_exec(&utask3);
-}
-
-void user_test1()
-{
-    do_exec(&utest1);
-}
-
-void user_test2()
-{
-    do_exec(&utest2);
+    do_exec(&utask1);
 }
 
 __attribute__((optimize("O0"))) static void delay(uint64_t count)

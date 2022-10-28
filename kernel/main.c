@@ -12,9 +12,9 @@ void main()
     fb_init();
     fb_showpicture();
     init_task();
-    privilege_task_create(&zombie_reaper);  // 1
-    privilege_task_create(&user_test1);     // 2
-    privilege_task_create(&user_test2);     // 3
+    privilege_task_create(&zombie_reaper);
+    privilege_task_create(&task3);
+    privilege_task_create(&task1);
     core_timer_enable();
     enable_irq();
     idle();
