@@ -220,7 +220,6 @@ void task1()
         printk("[PID %d] Kernel task 1...\n", do_get_taskid());
         for (int i = 0; i < (1 << 26); ++i)
             asm("nop");
-        reschedule();
         enable_irq();  // Enable IRQ if it returns from IRQ handler
     }
 }
