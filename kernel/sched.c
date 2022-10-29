@@ -44,7 +44,13 @@ void schedule()
     if (!irq_disable_bit)
         enable_irq();
     next->state = TASK_RUNNING;
-    context_switch(next);
+    if (!irq_disable_bit)
+        disable_irq();
+    {
+        context_switch(next);
+    }
+    if (!irq_disable_bit)
+        enable_irq();
 }
 
 void reschedule()
