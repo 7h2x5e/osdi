@@ -1,4 +1,4 @@
-#include <include/asm/sysregs.h>
+#include <include/arm/sysregs.h>
 #include <include/irq.h>
 #include <include/printk.h>
 #include <include/sched.h>

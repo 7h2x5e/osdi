@@ -1,6 +1,6 @@
 .section ".text.boot"
 
-#include <include/asm/sysregs.h>
+#include <include/arm/sysregs.h>
 
 .global _start
 _start:
