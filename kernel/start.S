@@ -1,6 +1,7 @@
 .section ".text.boot"
 
 #include <include/arm/sysregs.h>
+#include <include/arm/mmu.h>
 
 .global _start
 _start:
@@ -14,6 +15,7 @@ proc_hang:
     b       proc_hang
 
 el2_init:
+    // disable MMU
 	ldr	    x0, =SCTLR_VALUE_MMU_DISABLED
 	msr	    sctlr_el1, x0		
 
@@ -46,6 +48,10 @@ el1_init:
     // load exception_table to VBAR_EL1
     ldr     x0, =exception_table
     msr     VBAR_EL1, x0
+
+    // set up TCR
+    ldr     x0, = TCR_CONFIG_DEFAULT
+    msr     tcr_el1, x0
 
     bl      main
     
