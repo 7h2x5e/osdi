@@ -53,6 +53,13 @@ el1_init:
     ldr     x0, = TCR_CONFIG_DEFAULT
     msr     tcr_el1, x0
 
+    // set up MAIR
+    ldr     x0, =( \
+            (MAIR_DEVICE_nGnRnE << (MAIR_IDX_DEVICE_nGnRnE * 8)) | \
+            (MAIR_NORMAL_NOCACHE << (MAIR_IDX_NORMAL_NOCACHE * 8)) \
+            )
+    msr     mair_el1, x0
+
     bl      main
     
     // for failsafe
