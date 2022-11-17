@@ -2,6 +2,7 @@
 
 #include <include/arm/sysregs.h>
 #include <include/arm/mmu.h>
+#include <include/mm.h>
 
 .global _start
 _start:
@@ -77,10 +78,20 @@ el1_init:
     str     x3, [x1, 8] // 2nd 1GB mapped by the 2nd entry of PUD
 
     msr     ttbr0_el1, x0 // load PGD to the buttom translation based register.
+    msr     ttbr1_el1, x0 // also load PGD to the upper translation based register.
 
     mrs     x2, sctlr_el1
     orr     x2 , x2, 1
     msr     sctlr_el1, x2 // enable MMU, cache remains disabled
+
+    // mov sp to virtual address
+    ldr     x0, =KERNEL_VIRT_BASE
+    add     sp, sp, x0
+
+    // indirect branch
+    ldr     x0, =boot_rest
+    br      x0
+boot_rest:
 
     bl      main
     
