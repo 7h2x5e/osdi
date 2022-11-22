@@ -2,5 +2,6 @@
 #define _MM_H
 
 #define KERNEL_VIRT_BASE 0xFFFF000000000000
-
+#define PAGE_TABLE_SIZE 4096
+#define PAGE_SIZE 4096
 #endif

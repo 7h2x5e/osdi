@@ -26,6 +26,13 @@ SECTIONS
   .ustack : {
     KEEP(*(.ustack))
   }
+  . = ALIGN(0x1000);
+  pg_dir = .;
+  .data.pgd :
+  {
+    . += (515 * (1 << 12)); /* (PGD * 1) + (PUD * 1) + (PMD * 1) + (PTE * 512) */
+  }
+  . = ALIGN(0x1000);
   _end = .;
 }
 __bss_size = (__bss_end - __bss_start)>>3;
