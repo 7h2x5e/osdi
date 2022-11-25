@@ -61,3 +61,15 @@ void *memmove(void *dst, const void *src, size_t n)
 
     return dst;
 }
+
+void *memset(void *s, int c, size_t n)
+{
+    uint8_t *p = (uint8_t *) s;
+    uint8_t *end = p + n;
+
+    while (p != end) {
+        *p++ = c;
+    }
+
+    return s;
+}
