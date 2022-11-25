@@ -6,8 +6,7 @@ void printf(const char *fmt, ...)
     __builtin_va_list args;
     __builtin_va_start(args, fmt);
 
-    extern char _end;
-    char *dst = &_end;
+    char dst[512] = {0};
     vsprintf(dst, fmt, args);
     __builtin_va_end(args);
 

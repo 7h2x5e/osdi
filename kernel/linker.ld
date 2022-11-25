@@ -33,7 +33,7 @@ SECTIONS
     . += (515 * (1 << 12)); /* (PGD * 1) + (PUD * 1) + (PMD * 1) + (PTE * 512) */
   }
   . = ALIGN(0x1000);
-  _end = .;
+  _kernel_end = .;
 }
 __bss_size = (__bss_end - __bss_start)>>3;
-__loader_size = (_end - _code)>>3;
+__loader_size = (_kernel_end - _code)>>3;

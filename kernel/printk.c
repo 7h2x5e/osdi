@@ -31,8 +31,8 @@ void printk(const char *fmt, ...)
     __builtin_va_list args;
     __builtin_va_start(args, fmt);
 
-    extern char _end;
-    char *dst = &_end;
+    extern char _kernel_end;
+    char *dst = &_kernel_end;
     vsprintf(dst, fmt, args);
     __builtin_va_end(args);
 
@@ -49,8 +49,8 @@ void printk_time(const char *fmt, ...)
     __builtin_va_list args;
     __builtin_va_start(args, fmt);
 
-    extern char _end;
-    char *dst = &_end;
+    extern char _kernel_end;
+    char *dst = &_kernel_end;
     vsprintf(dst, fmt, args);
     __builtin_va_end(args);
 
