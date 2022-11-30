@@ -7,6 +7,7 @@
 #include <include/printk.h>
 #include <include/sched.h>
 #include <include/task.h>
+#include <include/mm.h>
 
 // user task
 #include <include/signal.h>
@@ -14,41 +15,20 @@
 #include <include/syscall.h>
 
 // kernel task
-void task1()
+void required_2_3()
 {
-    while (1) {
-        printk("[PID %d] Kernel task 1...\n", do_get_taskid());
-        for (int i = 0; i < (1 << 26); ++i)
-            asm("nop");
-        enable_irq();  // Enable IRQ if it returns from IRQ handler
-    }
-}
+    printk("Allocate 10 pages...\n");
 
-void task2()
-{
-    while (1) {
-        printk("[PID %d] Kernel task 2...\n", do_get_taskid());
-        for (int i = 0; i < (1 << 26); ++i)
-            asm("nop");
-        reschedule();
-        enable_irq();
+    int i;
+    void *virt_addr[10];
+    for (i = 0; i < 10; ++i) {
+        virt_addr[i] = page_alloc_kernel();
+        printk("page start: 0x%h\n", (uintptr_t) virt_addr[i]);
     }
-}
-
-void task3()
-{
-    do_exec(&utask1);
+    for (i = 0; i < 10; ++i) {
+        page_free(virt_addr[i]);
+    }
+    do_exit();
 }
 
 // user task
-void utask1()
-{
-    char buf[256];
-    do {
-        printf("[PID %d] input string:\n", get_taskid());
-        if (!fgets(buf, 256))
-            continue;
-        printf("[PID %d] your string: %s\n", get_taskid(), buf);
-    } while (1);
-    exit();
-}
