@@ -4,6 +4,7 @@
 #include <include/peripherals/uart.h>
 #include <include/sched.h>
 #include <include/task.h>
+#include <include/demo.h>
 
 void main()
 {

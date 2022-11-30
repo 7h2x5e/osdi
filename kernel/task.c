@@ -214,32 +214,6 @@ void runqueue_pop(runqueue_t *rq, task_t **t)
     rq->head &= rq->mask;
 }
 
-void task1()
-{
-    while (1) {
-        printk("[PID %d] Kernel task 1...\n", do_get_taskid());
-        for (int i = 0; i < (1 << 26); ++i)
-            asm("nop");
-        enable_irq();  // Enable IRQ if it returns from IRQ handler
-    }
-}
-
-void task2()
-{
-    while (1) {
-        printk("[PID %d] Kernel task 2...\n", do_get_taskid());
-        for (int i = 0; i < (1 << 26); ++i)
-            asm("nop");
-        reschedule();
-        enable_irq();
-    }
-}
-
-void task3()
-{
-    do_exec(&utask1);
-}
-
 __attribute__((optimize("O0"))) static void delay(uint64_t count)
 {
     for (uint64_t i = 0; i < count; ++i)

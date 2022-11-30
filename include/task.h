@@ -84,11 +84,6 @@ void do_exec(void (*)());
 int64_t do_fork(struct TrapFrame *);
 void do_exit();
 int64_t privilege_task_create(void (*)());
-void task1();
-void task2();
-void task3();
-void user_test1();
-void user_test2();
 void idle();
 void zombie_reaper();
 
