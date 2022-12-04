@@ -63,10 +63,9 @@ char *itoa(char *tmpstr, long int arg)
     return &tmpstr[i];
 }
 
-char *itoh(char *tmpstr, long int arg)
+char *itoh(char *tmpstr, unsigned long long arg)
 {
-    int i = 18;
-    // convert to string
+    int i = 20;  // 2^64 ~= 10^19.26, 20 = 19 + 1 (null byte)
     tmpstr[i] = 0;
     do {
         int tmp = arg & 0xF;

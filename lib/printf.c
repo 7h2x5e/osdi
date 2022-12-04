@@ -48,7 +48,7 @@ unsigned int vsprintf(char *dst, const char *fmt, __builtin_va_list args)
                 goto copystring;
             } else if (*fmt == 'h') {
                 // hex number
-                arg = __builtin_va_arg(args, int);
+                arg = __builtin_va_arg(args, unsigned long long);
                 p = itoh(tmpstr, arg);
                 goto copystring;
             } else if (*fmt == 'f') {
