@@ -60,6 +60,7 @@ void init_task()
 
     for (uint32_t i = 0; i < MAX_TASK; ++i) {
         task_pool[i].state = TASK_UNUSED;
+        mm_struct_init(&task_pool[i].mm);
         INIT_LIST_HEAD(&task_pool[i].node);
     }
 
@@ -83,18 +84,36 @@ static inline int64_t get_pid()
 
 void do_exec(void (*func)())
 {
-    task_t *task = (task_t *) get_current();
-    // stack address grows towards lower memory address, so we use address of
-    // top of stack of next user task as initial stack address.
-    void *ustack = get_ustacktop_by_id(task->tid);
+    /*
+     * If the task was created by privilege_task_create() and hasn't initlized
+     * page table, the default value of TTBR0_EL1 is 0x0
+     */
+    const task_t *task = get_current();
+    uintptr_t sp =
+        USER_VIRT_TOP - KERNEL_STACK_SIZE -
+        sizeof(uintptr_t);  // stack address grows towards lower memory address
+    size_t size = PAGE_SIZE;
+    uintptr_t pc = 0x0;  // start from 0x0
+
+    // allocate page for user
+    void *utext = map_addr_user((void *) pc);   // assume size < 4KB
+    void *ustack = map_addr_user((void *) sp);  // assume size < 4KB
+    if (!utext || !ustack) {
+        // TODO: reclaim utext and ustack
+        return;
+    }
+
+    // copy text
+    memcpy(utext, func, size);
 
     // switch to el0
+    update_pgd(task->mm.pgd);
     asm volatile(
         "msr     sp_el0, %0\n\t"
         "msr     elr_el1, %1\n\t"
         "msr     spsr_el1, %2\n\t"
-        "eret" ::"r"(ustack),
-        "r"(func), "r"(SPSR_EL1_VALUE));
+        "eret" ::"r"(sp),
+        "r"(pc), "r"(SPSR_EL1_VALUE));
     __builtin_unreachable();
 }
 
@@ -147,6 +166,7 @@ void do_exit()
 {
     task_t *cur = (task_t *) get_current();
     cur->state = TASK_ZOMBIE;
+    /* TODO: reclaim page */
     list_add_tail(&cur->node, &zombie_list);
     schedule();
     __builtin_unreachable();
@@ -166,6 +186,7 @@ int64_t privilege_task_create(void (*func)())
     task->counter = TASK_EPOCH;
     task->sig_pending = 0;
     task->sig_blocked = 0;
+    mm_struct_init(&task->mm);
     runqueue_push(&runqueue, &task);
 
     return (int64_t) tid;

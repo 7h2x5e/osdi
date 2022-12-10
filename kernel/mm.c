@@ -3,6 +3,7 @@
 #include <include/peripherals/base.h>
 #include <include/string.h>
 #include <include/types.h>
+#include <include/task.h>
 
 page_t page[PAGE_NUM];
 
@@ -163,4 +164,94 @@ void page_free(void *virt_addr)
     int pfn = PA_TO_PFN(KVA_TO_PA((uintptr_t) virt_addr));
     unset(&page[pfn].flag, PAGE_USED);
     page[pfn].physical = NULL;
+}
+
+void mm_struct_init(mm_struct *mm)
+{
+    mm->pgd = (uintptr_t) NULL;
+}
+
+/* create pgd for user space of a specific process
+ * return virtual address of the pgd if success, otherwise return NULL.
+ */
+static void *create_pgd(mm_struct *mm)
+{
+    if (!mm->pgd) {
+        // has't created pgd
+        void *page_virt_addr = page_alloc_kernel();
+        if (!page_virt_addr)
+            return NULL;
+        mm->pgd = KVA_TO_PA(page_virt_addr);
+    }
+    return (void *) PA_TO_KVA(mm->pgd);
+}
+
+/* create pud/pmd/pte for user process
+ * return virtual address of the pud/pmd/pte if success, otherwise return NULL.
+ */
+static void *create_pmd_pgd_pte(uint64_t *page_table, uint32_t index)
+{
+    if (!page_table)
+        return NULL;
+    if (!page_table[index]) {
+        void *page_virt_addr = page_alloc_kernel();
+        if (!page_virt_addr)
+            return NULL;
+        page_table[index] = KVA_TO_PA(page_virt_addr) | PD_TABLE;
+    }
+    return (void *) ((page_table[index] & ~0xfffULL) | KERNEL_VIRT_BASE);
+}
+
+/* create page for user process
+ * return virtual address of the page if success, otherwise return NULL.
+ */
+static void *create_page(uint64_t *pte, uint32_t index)
+{
+    if (!pte)
+        return NULL;
+    if (!pte[index]) {
+        void *page_virt_addr = page_alloc_kernel();
+        if (!page_virt_addr)
+            return NULL;
+        pte[index] =
+            KVA_TO_PA(page_virt_addr) | PTE_NORMAL_ATTR | PD_ACCESS_PERM_1;
+    }
+    return (void *) ((pte[index] & ~0xfffULL) | KERNEL_VIRT_BASE);
+}
+
+/* Allocate new page for user process and return pages's virtual address
+ * Return page address of `uaddr` if success, otherwise return NULL
+ */
+void *map_addr_user(void *uaddr)
+{
+    /*
+     * virtual user address
+     * | 0.....0 | pgd index | pmd index | pud index | pte index | offset |
+     *      16          9           9           9          9         12
+     */
+    task_t *cur_task = (task_t *) get_current();
+    uint32_t pgd_idx = ((uint64_t) uaddr & (PD_MASK << PGD_SHIFT)) >> PGD_SHIFT;
+    uint32_t pud_idx = ((uint64_t) uaddr & (PD_MASK << PUD_SHIFT)) >> PUD_SHIFT;
+    uint32_t pmd_idx = ((uint64_t) uaddr & (PD_MASK << PMD_SHIFT)) >> PMD_SHIFT;
+    uint32_t pte_idx = ((uint64_t) uaddr & (PD_MASK << PTE_SHIFT)) >> PTE_SHIFT;
+
+    void *pgd, *pud, *pmd, *pte, *page;
+    pgd = create_pgd(&cur_task->mm);
+    if (!pgd)
+        goto err;
+    pud = create_pmd_pgd_pte(pgd, pgd_idx);
+    if (!pud)
+        goto err;
+    pmd = create_pmd_pgd_pte(pud, pud_idx);
+    if (!pmd)
+        goto err;
+    pte = create_pmd_pgd_pte(pmd, pmd_idx);
+    if (!pte)
+        goto err;
+    page = create_page(pte, pte_idx);
+    if (!page)
+        goto err;
+    return page;
+err:
+    return NULL;
 }

@@ -2,6 +2,7 @@
 #include <include/sched.h>
 #include <include/task.h>
 #include <include/types.h>
+#include <include/mm.h>
 
 void schedule()
 {
@@ -64,5 +65,6 @@ void reschedule()
 void context_switch(task_t *next)
 {
     task_t *prev = (task_t *) get_current();
+    update_pgd(next->mm.pgd);
     switch_to(prev, next);
 }

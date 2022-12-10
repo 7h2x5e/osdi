@@ -9,6 +9,7 @@
 #include <include/exc.h>
 #include <include/list.h>
 #include <include/types.h>
+#include <include/mm.h>
 
 /* runqueue ring buffer */
 #define MAX_TASK (1 << 6)
@@ -52,6 +53,7 @@ typedef struct task_struct {
     uint64_t counter;
     sigvec_t sig_pending;
     sigvec_t sig_blocked;
+    mm_struct mm;
     struct list_head node;
 } task_t;
 
@@ -86,6 +88,7 @@ void do_exit();
 int64_t privilege_task_create(void (*)());
 void idle();
 void zombie_reaper();
+void update_pgd(uintptr_t);
 
 #endif
 #endif
