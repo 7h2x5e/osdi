@@ -15,20 +15,17 @@
 #include <include/syscall.h>
 
 // kernel task
-void required_2_3()
+void required_3_1()
 {
-    printk("Allocate 10 pages...\n");
-
-    int i;
-    void *virt_addr[10];
-    for (i = 0; i < 10; ++i) {
-        virt_addr[i] = page_alloc_kernel();
-        printk("page start: 0x%h\n", (uintptr_t) virt_addr[i]);
-    }
-    for (i = 0; i < 10; ++i) {
-        page_free(virt_addr[i]);
-    }
-    do_exit();
+    do_exec(required_3_1_user);
 }
 
 // user task
+void required_3_1_user()
+{
+    while (1) {
+        // user library hasn't implemented
+        // printf("Hello world\n");
+        // fork();
+    }
+}

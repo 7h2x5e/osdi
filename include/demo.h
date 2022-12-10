@@ -1,6 +1,7 @@
 #ifndef DEMO_H
 #define DEMO_H
 
-void required_2_3();
+void required_3_1();
+void required_3_1_user();
 
 #endif
