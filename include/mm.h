@@ -3,5 +3,19 @@
 
 #define KERNEL_VIRT_BASE 0xFFFF000000000000
 #define PAGE_TABLE_SIZE 4096
-#define PAGE_SIZE 4096
+#define PAGE_SHIFT 12
+#define PAGE_SIZE (1UL << PAGE_SHIFT)
+#define PAGE_MASK (~(PAGE_SIZE - 1))
+#define PAGE_NUM (0x40000000 / PAGE_SIZE)
+
+#ifndef __ASSEMBLER__
+
+#include <include/types.h>
+
+#define KVA_TO_PA(addr) ((uint64_t) addr << 16 >> 16)
+#define PA_TO_KVA(addr) ((uint64_t) addr | KERNEL_VIRT_BASE)
+#define PA_TO_PFN(addr) ((uint64_t) addr >> PAGE_SHIFT)
+#define PFN_TO_PA(idx) ((uint64_t) idx << PAGE_SHIFT)
+
+#endif
 #endif
