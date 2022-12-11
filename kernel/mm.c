@@ -105,3 +105,62 @@ void page_init()
         set(&page[i].flag, PAGE_USED);
     }
 }
+
+page_t *get_free_page()
+{
+    extern char _kernel_end;
+    int pfn_start = PA_TO_PFN(KVA_TO_PA(&_kernel_end)),
+        pfn_end = PA_TO_PFN(KVA_TO_PA(MMIO_BASE));
+
+    // find an available page
+    for (; pfn_start < pfn_end && is_set(page[pfn_start].flag, PAGE_USED);
+         ++pfn_start)
+        ;
+    if (pfn_start == pfn_end)
+        return NULL;
+
+    // initialize the page
+    physaddr_t phy_addr = (physaddr_t) pfn_start << PAGE_SHIFT;
+    uintptr_t virt_addr = phy_addr | KERNEL_VIRT_BASE;
+    memset((void *) virt_addr, 0, PAGE_SIZE);
+
+    // save to page struct
+    page[pfn_start].physical = (void *) phy_addr;
+    set(&page[pfn_start].flag, PAGE_USED);
+
+    // return pointer to page struct
+    return &page[pfn_start];
+}
+
+// get a page for kernel space
+void *page_alloc_kernel()
+{
+    page_t *page_ptr = get_free_page();
+    if (!page_ptr)
+        return NULL;
+
+    physaddr_t phy_addr = (physaddr_t) page_ptr->physical;
+    uintptr_t virt_addr = phy_addr | KERNEL_VIRT_BASE;
+
+    return (void *) virt_addr;
+}
+
+// get a page for user space
+void *page_alloc_user()
+{
+    page_t *page_ptr = get_free_page();
+    if (!page_ptr)
+        return NULL;
+
+    physaddr_t phy_addr = (physaddr_t) page_ptr->physical;
+    uintptr_t virt_addr = phy_addr | KERNEL_VIRT_BASE;
+
+    return (void *) virt_addr;
+}
+
+void page_free(void *virt_addr)
+{
+    int pfn = PA_TO_PFN(KVA_TO_PA((uintptr_t) virt_addr));
+    unset(&page[pfn].flag, PAGE_USED);
+    page[pfn].physical = NULL;
+}

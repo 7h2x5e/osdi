@@ -26,5 +26,10 @@ typedef struct {
 
 extern page_t page[PAGE_NUM];
 
+page_t *get_free_page();
+void *page_alloc_kernel();
+void *page_alloc_user();
+void page_free(void *virt_addr);
+
 #endif
 #endif
