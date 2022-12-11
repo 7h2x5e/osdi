@@ -17,5 +17,14 @@
 #define PA_TO_PFN(addr) ((uint64_t) addr >> PAGE_SHIFT)
 #define PFN_TO_PA(idx) ((uint64_t) idx << PAGE_SHIFT)
 
+enum page_flag { PAGE_USED = 1 << 0 };
+
+typedef struct {
+    uint32_t flag;
+    void *physical;
+} page_t;
+
+extern page_t page[PAGE_NUM];
+
 #endif
 #endif

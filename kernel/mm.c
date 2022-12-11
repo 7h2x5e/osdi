@@ -1,6 +1,25 @@
 #include <include/arm/mmu.h>
 #include <include/mm.h>
+#include <include/peripherals/base.h>
+#include <include/string.h>
 #include <include/types.h>
+
+page_t page[PAGE_NUM];
+
+bool is_set(uint32_t target, uint32_t val)
+{
+    return !!(target & val);
+}
+
+void set(uint32_t *target, uint32_t val)
+{
+    *target |= val;
+}
+
+void unset(uint32_t *target, uint32_t val)
+{
+    *target &= ~val;
+}
 
 /* Page table size and content:
  * PGD: 1 page, 1 entry (point to 1 PUD)
@@ -64,4 +83,25 @@ void create_page_table()
         "orr %0, %0, 1\n"
         "msr sctlr_el1, %0"  // enable MMU, cache remains disabled
         ::"r"(pgd));
+}
+
+void page_init()
+{
+    extern char _kernel_end;
+    int i = 0;
+    for (; i < PA_TO_PFN(KVA_TO_PA(&_kernel_end)); ++i) {
+        // kernel stack + kernel image
+        page[i].physical = (void *) ((physaddr_t) i << PAGE_SHIFT);
+        page[i].flag = 0;
+        set(&page[i].flag, PAGE_USED);
+    }
+    for (; i < PA_TO_PFN(KVA_TO_PA(MMIO_BASE)); ++i) {
+        page[i].flag = 0;
+    }
+    for (; i < PAGE_NUM; ++i) {
+        // MMIO
+        page[i].physical = (void *) ((physaddr_t) i << PAGE_SHIFT);
+        page[i].flag = 0;
+        set(&page[i].flag, PAGE_USED);
+    }
 }

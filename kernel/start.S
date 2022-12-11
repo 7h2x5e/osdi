@@ -40,16 +40,6 @@ el2_init:
     eret
 
 el1_init:
-    // clear bss
-	adr     x0, __bss_start
-	adr     x1, __bss_end
-	sub     x1, x1, x0
-	bl      memzero
-
-    // load exception_table to VBAR_EL1
-    ldr     x0, =exception_table
-    msr     VBAR_EL1, x0
-
     // set up TCR
     ldr     x0, = TCR_CONFIG_DEFAULT
     msr     tcr_el1, x0
@@ -72,6 +62,17 @@ el1_init:
     br      x0
 boot_rest:
 
+    // load exception_table to VBAR_EL1
+    ldr     x0, =exception_table
+    msr     VBAR_EL1, x0
+
+    // clear bss
+	ldr     x0, =__bss_start
+	ldr     x1, =__bss_end
+	sub     x1, x1, x0
+	bl      memzero
+
+    bl      page_init
     bl      main
     
     // for failsafe
