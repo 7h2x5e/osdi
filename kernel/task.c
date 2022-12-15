@@ -131,25 +131,20 @@ int64_t do_fork(struct TrapFrame *tf)
     task_t *new_task = get_task_by_id(new_task_id);
     const task_t *cur_task = get_current();
 
-    void *ustack_cur = get_ustack_by_id(cur_task->tid);
-    void *ustack_new = get_ustack_by_id(new_task->tid);
-    void *ustacktop_cur = get_ustacktop_by_id(cur_task->tid);
-    void *ustacktop_new = get_ustacktop_by_id(new_task->tid);
+    // fork page table
+    if (-1 == fork_page_table(&new_task->mm, &cur_task->mm)) {
+        /* TODO: reclaim page */
+        return -1;
+    }
+
+    // parent process and child process have the same content of TrapFrame
     void *kstacktop_new = get_kstacktop_by_id(new_task->tid);
-
-    // copy user context
-    memcpy(ustack_new, ustack_cur, USTACK_SIZE);
-
-    // set child's trapframe
     struct TrapFrame *tf_new =
         (struct TrapFrame *) (kstacktop_new - sizeof(struct TrapFrame));
     *tf_new = *tf;
 
     // set child's return value
     tf_new->x[0] = 0;
-
-    // change child's user stack
-    tf_new->sp = (uint64_t) (ustacktop_new + ((void *) tf->sp - ustacktop_cur));
 
     // set child task's task_struct
     extern void ret_to_user();

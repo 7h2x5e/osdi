@@ -255,3 +255,51 @@ void *map_addr_user(void *uaddr)
 err:
     return NULL;
 }
+
+int fork_page(void *dst, const void *src)
+{
+    if (!src || !dst)
+        return -1;
+    memcpy(dst, src, PAGE_SIZE);
+    return 0;
+}
+
+/* return 0 if success, return -1 if fail. */
+#define FORK_PAGE_TABLE(name, callback)                         \
+    int name(uint64_t *dst_pt, const uint64_t *src_pt)          \
+    {                                                           \
+        for (uint16_t idx = 0; idx < (1 << 9); idx++) {         \
+            if (src_pt[idx]) {                                  \
+                const void *next_src_pt =                       \
+                    (const void *) ((src_pt[idx] & ~0xfffULL) | \
+                                    KERNEL_VIRT_BASE);          \
+                void *next_dst_pt = create_page(dst_pt, idx);   \
+                if (-1 == callback(next_dst_pt, next_src_pt))   \
+                    return -1;                                  \
+            }                                                   \
+        }                                                       \
+        return 0;                                               \
+    }
+
+FORK_PAGE_TABLE(fork_pte, fork_page)
+FORK_PAGE_TABLE(fork_pmd, fork_pte)
+FORK_PAGE_TABLE(fork_pud, fork_pmd)
+FORK_PAGE_TABLE(fork_pgd, fork_pud)
+
+/*
+ * fork page table of user process
+ * return 0 if success, return -1 if fail.
+ */
+int fork_page_table(mm_struct *dst, const mm_struct *src)
+{
+    if (!src || !dst)
+        return -1;
+    if (!src->pgd || dst->pgd)
+        return -1;  // dst's pgd must be uninitialized
+
+    uint64_t *src_pgd = (uint64_t *) PA_TO_KVA(src->pgd);
+    uint64_t *dst_pgd = (uint64_t *) create_pgd(dst);
+
+    // copy page table recursively
+    return fork_pgd(src_pgd, dst_pgd);
+}

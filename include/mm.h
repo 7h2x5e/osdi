@@ -39,6 +39,7 @@ void page_free(void *virt_addr);
 
 void mm_struct_init(mm_struct *);
 void *map_addr_user(void *);
+int fork_page_table(mm_struct *, const mm_struct *);
 
 #endif
 #endif
