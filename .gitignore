@@ -1,4 +1,7 @@
 user/*.o
+user/*.bin
+user/*.img
+user/*.elf
 kernel/*.o
 kernel/*.elf
 lib/*.o
