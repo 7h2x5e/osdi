@@ -15,17 +15,11 @@
 #include <include/syscall.h>
 
 // kernel task
-void required_3_1()
+void required_3_5()
 {
-    do_exec(required_3_1_user);
-}
-
-// user task
-void required_3_1_user()
-{
-    while (1) {
-        // user library hasn't implemented
-        // printf("Hello world\n");
-        // fork();
-    }
+    extern char _binary_user_user_img_start;
+    extern char _binary_user_user_img_size;
+    void *start = (void *) &_binary_user_user_img_start;
+    ssize_t size = (ssize_t) &_binary_user_user_img_size;
+    do_exec(start, size, (uint64_t) 0x0);
 }

@@ -14,7 +14,7 @@ void main()
     fb_showpicture();
     init_task();
     privilege_task_create(&zombie_reaper);
-    privilege_task_create(&required_3_1);
+    privilege_task_create(&required_3_5);
     core_timer_enable();
     enable_irq();
     idle();

@@ -5,7 +5,6 @@
 #include <include/string.h>
 #include <include/task.h>
 #include <include/types.h>
-#include <include/utask.h>
 
 runqueue_t runqueue, waitqueue;
 struct list_head zombie_list;
@@ -82,7 +81,7 @@ static inline int64_t get_pid()
     return -1;
 }
 
-void do_exec(void (*func)())
+void do_exec(void (*func)(), size_t size, uint64_t pc)
 {
     /*
      * If the task was created by privilege_task_create() and hasn't initlized
@@ -90,21 +89,25 @@ void do_exec(void (*func)())
      */
     const task_t *task = get_current();
     uintptr_t sp =
-        USER_VIRT_TOP - KERNEL_STACK_SIZE -
+        USER_VIRT_TOP -
         sizeof(uintptr_t);  // stack address grows towards lower memory address
-    size_t size = PAGE_SIZE;
-    uintptr_t pc = 0x0;  // start from 0x0
 
-    // allocate page for user
-    void *utext = map_addr_user((void *) pc);   // assume size < 4KB
-    void *ustack = map_addr_user((void *) sp);  // assume size < 4KB
-    if (!utext || !ustack) {
-        // TODO: reclaim utext and ustack
-        return;
+    // allocate pages for user program
+    size_t upper_bound = ROUNDUP(size, PAGE_SIZE);
+    for (size_t offset = 0; offset < upper_bound;
+         offset += PAGE_SIZE, size -= PAGE_SIZE) {
+        void *utext = map_addr_user((void *) (pc + offset));
+        if (!utext) {
+            goto _do_exec_err;
+        }
+        memcpy(utext, (char *) func + offset, MIN(size, PAGE_SIZE));
     }
 
-    // copy text
-    memcpy(utext, func, size);
+    // assume stack size < 4KB
+    void *ustack = map_addr_user((void *) sp);
+    if (!ustack) {
+        goto _do_exec_err;
+    }
 
     // switch to el0
     update_pgd(task->mm.pgd);
@@ -114,7 +117,11 @@ void do_exec(void (*func)())
         "msr     spsr_el1, %2\n\t"
         "eret" ::"r"(sp),
         "r"(pc), "r"(SPSR_EL1_VALUE));
-    __builtin_unreachable();
+
+_do_exec_err:
+    // TODO: reclaim all pages
+
+    return;
 }
 
 /*
