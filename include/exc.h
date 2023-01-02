@@ -8,6 +8,8 @@
 #define ESR_ELx_IL_SHIFT 25
 #define ESR_ELx_EC_SHIFT 26
 #define ESR_ELx_EC_SVC64 0x15
+#define ESR_ELx_EC_INST_ABORT_LOW 0x20
+#define ESR_ELx_EC_DATA_ABORT_LOW 0x24
 
 struct TrapFrame {
     uint64_t x[31];  // x0-x30
