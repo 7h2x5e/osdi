@@ -14,6 +14,7 @@
 #ifndef __ASSEMBLER__
 
 #include <include/types.h>
+#include <include/list.h>
 
 #define KVA_TO_PA(addr) ((uint64_t) addr << 16 >> 16)
 #define PA_TO_KVA(addr) ((uint64_t) addr | KERNEL_VIRT_BASE)
@@ -24,10 +25,12 @@ enum page_flag { PAGE_USED = 1 << 0 };
 
 typedef struct {
     uintptr_t pgd;
+    struct list_head kernel_page_list, user_page_list;
 } mm_struct;
 typedef struct {
     uint32_t flag;
     void *physical;
+    struct list_head next_page;
 } page_t;
 
 extern page_t page[PAGE_NUM];

@@ -128,6 +128,7 @@ page_t *get_free_page()
     // save to page struct
     page[pfn_start].physical = (void *) phy_addr;
     set(&page[pfn_start].flag, PAGE_USED);
+    INIT_LIST_HEAD(&page[pfn_start].next_page);
 
     // return pointer to page struct
     return &page[pfn_start];
@@ -143,6 +144,9 @@ void *page_alloc_kernel()
     physaddr_t phy_addr = (physaddr_t) page_ptr->physical;
     uintptr_t virt_addr = phy_addr | KERNEL_VIRT_BASE;
 
+    task_t *cur_task = (task_t *) get_current();
+    list_add_tail(&page_ptr->next_page, &cur_task->mm.kernel_page_list);
+
     return (void *) virt_addr;
 }
 
@@ -155,6 +159,9 @@ void *page_alloc_user()
 
     physaddr_t phy_addr = (physaddr_t) page_ptr->physical;
     uintptr_t virt_addr = phy_addr | KERNEL_VIRT_BASE;
+
+    task_t *cur_task = (task_t *) get_current();
+    list_add_tail(&page_ptr->next_page, &cur_task->mm.user_page_list);
 
     return (void *) virt_addr;
 }
@@ -169,6 +176,8 @@ void page_free(void *virt_addr)
 void mm_struct_init(mm_struct *mm)
 {
     mm->pgd = (uintptr_t) NULL;
+    INIT_LIST_HEAD(&mm->kernel_page_list);
+    INIT_LIST_HEAD(&mm->user_page_list);
 }
 
 /* create pgd for user space of a specific process

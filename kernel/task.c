@@ -59,8 +59,6 @@ void init_task()
 
     for (uint32_t i = 0; i < MAX_TASK; ++i) {
         task_pool[i].state = TASK_UNUSED;
-        mm_struct_init(&task_pool[i].mm);
-        INIT_LIST_HEAD(&task_pool[i].node);
     }
 
     // initialize main() as idle task
@@ -79,6 +77,32 @@ static inline int64_t get_pid()
             return tid;
     }
     return -1;
+}
+
+static inline void reclaim_page()
+{
+    task_t *cur_task = (task_t *) get_current();
+    page_t *page, *temp_page;
+    void *page_addr;
+
+    list_for_each_entry_safe(page, temp_page, &cur_task->mm.kernel_page_list,
+                             next_page)
+    {
+        page_addr = page->physical + KERNEL_VIRT_BASE;
+        list_del_init(&page->next_page);
+        page_free(page_addr);
+        printk("[PID %d] free kernel page, virt addr: %h\n", do_get_taskid(),
+               page_addr);
+    }
+    list_for_each_entry_safe(page, temp_page, &cur_task->mm.user_page_list,
+                             next_page)
+    {
+        page_addr = page->physical + KERNEL_VIRT_BASE;
+        list_del(&page->next_page);
+        page_free(page_addr);
+        printk("[PID %d] free user page, virt addr %h\n", do_get_taskid(),
+               page_addr);
+    }
 }
 
 void do_exec(void (*func)(), size_t size, uint64_t pc)
@@ -119,8 +143,7 @@ void do_exec(void (*func)(), size_t size, uint64_t pc)
         "r"(pc), "r"(SPSR_EL1_VALUE));
 
 _do_exec_err:
-    // TODO: reclaim all pages
-
+    reclaim_page();
     return;
 }
 
@@ -140,7 +163,7 @@ int64_t do_fork(struct TrapFrame *tf)
 
     // fork page table
     if (-1 == fork_page_table(&new_task->mm, &cur_task->mm)) {
-        /* TODO: reclaim page */
+        reclaim_page();
         return -1;
     }
 
@@ -168,8 +191,8 @@ void do_exit()
 {
     task_t *cur = (task_t *) get_current();
     cur->state = TASK_ZOMBIE;
-    /* TODO: reclaim page */
     list_add_tail(&cur->node, &zombie_list);
+    reclaim_page();
     schedule();
     __builtin_unreachable();
 }
@@ -189,6 +212,7 @@ int64_t privilege_task_create(void (*func)())
     task->sig_pending = 0;
     task->sig_blocked = 0;
     mm_struct_init(&task->mm);
+    INIT_LIST_HEAD(&task->node);
     runqueue_push(&runqueue, &task);
 
     return (int64_t) tid;
