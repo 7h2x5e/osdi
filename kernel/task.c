@@ -1,6 +1,6 @@
 #include <include/arm/sysregs.h>
 #include <include/irq.h>
-#include <include/printk.h>
+#include <include/kernel_log.h>
 #include <include/sched.h>
 #include <include/string.h>
 #include <include/task.h>
@@ -79,29 +79,18 @@ static inline int64_t get_pid()
     return -1;
 }
 
-static inline void reclaim_page()
+static inline void reclaim_page(task_t *task)
 {
-    task_t *cur_task = (task_t *) get_current();
     page_t *page, *temp_page;
     void *page_addr;
 
-    list_for_each_entry_safe(page, temp_page, &cur_task->mm.kernel_page_list,
+    list_for_each_entry_safe(page, temp_page, &task->mm.kernel_page_list,
                              next_page)
     {
         page_addr = page->physical + KERNEL_VIRT_BASE;
         list_del_init(&page->next_page);
         page_free(page_addr);
-        printk("[PID %d] free kernel page, virt addr: %h\n", do_get_taskid(),
-               page_addr);
-    }
-    list_for_each_entry_safe(page, temp_page, &cur_task->mm.user_page_list,
-                             next_page)
-    {
-        page_addr = page->physical + KERNEL_VIRT_BASE;
-        list_del(&page->next_page);
-        page_free(page_addr);
-        printk("[PID %d] free user page, virt addr %h\n", do_get_taskid(),
-               page_addr);
+        KERNEL_LOG_DEBUG("free kernel page, virt addr: %x", page_addr);
     }
 }
 
@@ -143,7 +132,7 @@ void do_exec(void (*func)(), size_t size, uint64_t pc)
         "r"(pc), "r"(SPSR_EL1_VALUE));
 
 _do_exec_err:
-    reclaim_page();
+    reclaim_page(task);
     return;
 }
 
@@ -163,7 +152,10 @@ int64_t do_fork(struct TrapFrame *tf)
 
     // fork page table
     if (-1 == fork_page_table(&new_task->mm, &cur_task->mm)) {
-        reclaim_page();
+        /* reclaim new task's resource */
+        new_task->state = TASK_ZOMBIE;
+        list_add_tail(&new_task->node, &zombie_list);
+        reclaim_page(new_task);
         return -1;
     }
 
@@ -192,7 +184,7 @@ void do_exit()
     task_t *cur = (task_t *) get_current();
     cur->state = TASK_ZOMBIE;
     list_add_tail(&cur->node, &zombie_list);
-    reclaim_page();
+    reclaim_page(cur);
     schedule();
     __builtin_unreachable();
 }

@@ -150,22 +150,6 @@ void *page_alloc_kernel()
     return (void *) virt_addr;
 }
 
-// get a page for user space
-void *page_alloc_user()
-{
-    page_t *page_ptr = get_free_page();
-    if (!page_ptr)
-        return NULL;
-
-    physaddr_t phy_addr = (physaddr_t) page_ptr->physical;
-    uintptr_t virt_addr = phy_addr | KERNEL_VIRT_BASE;
-
-    task_t *cur_task = (task_t *) get_current();
-    list_add_tail(&page_ptr->next_page, &cur_task->mm.user_page_list);
-
-    return (void *) virt_addr;
-}
-
 void page_free(void *virt_addr)
 {
     int pfn = PA_TO_PFN(KVA_TO_PA((uintptr_t) virt_addr));
@@ -177,7 +161,6 @@ void mm_struct_init(mm_struct *mm)
 {
     mm->pgd = (uintptr_t) NULL;
     INIT_LIST_HEAD(&mm->kernel_page_list);
-    INIT_LIST_HEAD(&mm->user_page_list);
 }
 
 /* create pgd for user space of a specific process
