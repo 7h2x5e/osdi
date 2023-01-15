@@ -8,11 +8,8 @@ void delay(int period)
 
 int main()
 {
-    printf("%h\n", *((char *) 0xffff000000000000)); /* Data abort */
-    int count = 10;
-    while (count) {
-        printf("[PID %d] Hello world x%d\n", get_taskid(), count--);
-        delay(10000000);
-    }
+    void *new_addr = mmap((void *) 0xdeadbeef, 4097, PROT_READ | PROT_WRITE,
+                          MAP_ANONYMOUS, NULL, 0);
+    printf("allocate a page, start at 0x%x\n", new_addr);
     return 0;
 }

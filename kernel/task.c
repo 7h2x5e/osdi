@@ -5,6 +5,8 @@
 #include <include/string.h>
 #include <include/task.h>
 #include <include/types.h>
+#include <include/mman.h>
+#include <include/elf.h>
 
 runqueue_t runqueue, waitqueue;
 struct list_head zombie_list;
@@ -94,46 +96,82 @@ static inline void reclaim_page(task_t *task)
     }
 }
 
-void do_exec(void (*func)(), size_t size, uint64_t pc)
+/*
+ * The exec() functions return only if an error has occurred. The return value
+ * is -1. User must call exit() to reclaim resources after error occured.
+ */
+int do_exec(void *bin_start)
 {
-    /*
-     * If the task was created by privilege_task_create() and hasn't initlized
-     * page table, the default value of TTBR0_EL1 is 0x0
-     */
-    const task_t *task = get_current();
     uintptr_t sp =
         USER_VIRT_TOP -
         sizeof(uintptr_t);  // stack address grows towards lower memory address
 
-    // allocate pages for user program
-    size_t upper_bound = ROUNDUP(size, PAGE_SIZE);
-    for (size_t offset = 0; offset < upper_bound;
-         offset += PAGE_SIZE, size -= PAGE_SIZE) {
-        void *utext = map_addr_user((void *) (pc + offset));
-        if (!utext) {
-            goto _do_exec_err;
+    /* Reading ELF Header */
+    Elf64_Ehdr *elf64_ehdr = (Elf64_Ehdr *) bin_start;
+    KERNEL_LOG_INFO("ELF Header Header");
+    KERNEL_LOG_INFO(" %s %x", "e_entry", elf64_ehdr->e_entry);
+    KERNEL_LOG_INFO(" %s %x", "e_phoff", elf64_ehdr->e_phoff);
+    KERNEL_LOG_INFO(" %s %x", "e_phnum", elf64_ehdr->e_phnum);
+
+    /* Reading Program Header */
+    Elf64_Phdr *elf64_phdr = NULL;
+    for (int i = 0; i < elf64_ehdr->e_phnum; ++i) {
+        elf64_phdr = (Elf64_Phdr *) (bin_start + elf64_ehdr->e_phoff +
+                                     elf64_ehdr->e_phentsize * i);
+        KERNEL_LOG_INFO("Program Header");
+        KERNEL_LOG_INFO(" %s %x", "p_type", elf64_phdr->p_type);
+        KERNEL_LOG_INFO(" %s %x", "p_vaddr", elf64_phdr->p_vaddr);
+        KERNEL_LOG_INFO(" %s %x", "p_offset", elf64_phdr->p_offset);
+        KERNEL_LOG_INFO(" %s %x", "p_align", elf64_phdr->p_align);
+        KERNEL_LOG_INFO(" %s %x", "p_filesz", elf64_phdr->p_filesz);
+        KERNEL_LOG_INFO(" %s %x", "p_memsz", elf64_phdr->p_memsz);
+        KERNEL_LOG_INFO(" %s %x", "p_flags", elf64_phdr->p_flags);
+        if (elf64_phdr->p_type == PT_LOAD) {
+            break;
         }
-        memcpy(utext, (char *) func + offset, MIN(size, PAGE_SIZE));
     }
 
-    // assume stack size < 4KB
-    void *ustack = map_addr_user((void *) sp);
-    if (!ustack) {
-        goto _do_exec_err;
-    }
+    /* With the MAP_FIXED flag, some parameters need to be aligned to page size
+     */
+    void *p_vaddr = (void *) elf64_phdr->p_vaddr;
+    size_t p_filesz = elf64_phdr->p_filesz;
+    int p_flags = elf64_phdr->p_flags;
+    int p_offset = elf64_phdr->p_offset;
+    int p_memsz = elf64_phdr->p_memsz;
+    void *_addr = ROUNDDOWN(p_vaddr, PAGE_SIZE);
+    int _file_offset = ROUNDDOWN(p_offset, PAGE_SIZE);
+    size_t _len = MAX(p_memsz, p_filesz) + (p_offset - _file_offset);
 
-    // switch to el0
+    /* allocate memory for .txt & .bss section */
+    if (MAP_FAILED == do_mmap(_addr, _len, p_flags, MAP_FIXED | MAP_POPULATE,
+                              bin_start,
+                              _file_offset))  // MAP_POPULATE can be removed if
+                                              // demand paging implemented
+        return -1;
+
+    /* allocate stack */
+    if (MAP_FAILED == do_mmap((void *) sp, PAGE_SIZE, PROT_READ | PROT_WRITE,
+                              MAP_ANONYMOUS, NULL, 0))
+        return -1;
+
+    /* update ttbr0_el1 */
+    const task_t *task = get_current();
     update_pgd(task->mm.pgd);
+
+    /* zerofill .bss section */
+    if (p_memsz > p_filesz) {
+        memset(_addr + (p_offset - _file_offset) + p_filesz, 0,
+               p_memsz - p_filesz);
+    }
+
+    /* switch to el0 */
     asm volatile(
         "msr     sp_el0, %0\n\t"
         "msr     elr_el1, %1\n\t"
         "msr     spsr_el1, %2\n\t"
         "eret" ::"r"(sp),
-        "r"(pc), "r"(SPSR_EL1_VALUE));
-
-_do_exec_err:
-    reclaim_page(task);
-    return;
+        "r"(_addr + (p_offset - _file_offset)), "r"(SPSR_EL1_VALUE));
+    __builtin_unreachable();
 }
 
 /*

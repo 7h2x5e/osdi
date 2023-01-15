@@ -4,6 +4,7 @@
 #include <include/string.h>
 #include <include/types.h>
 #include <include/task.h>
+#include <include/mman.h>
 
 page_t page[PAGE_NUM];
 
@@ -197,7 +198,7 @@ static void *create_pmd_pgd_pte(uint64_t *page_table, uint32_t index)
 /* create page for user process
  * return virtual address of the page if success, otherwise return NULL.
  */
-static void *create_page(uint64_t *pte, uint32_t index)
+static void *create_page(uint64_t *pte, uint32_t index, int prot)
 {
     if (!pte)
         return NULL;
@@ -205,8 +206,22 @@ static void *create_page(uint64_t *pte, uint32_t index)
         void *page_virt_addr = page_alloc_kernel();
         if (!page_virt_addr)
             return NULL;
-        pte[index] =
-            KVA_TO_PA(page_virt_addr) | PTE_NORMAL_ATTR | PD_ACCESS_PERM_1;
+        uint64_t perm = 0;
+        if (!(prot & PROT_EXEC)) {
+            perm |= (1ULL << 54);
+        }
+        if (prot & PROT_NONE) {
+            perm |= PD_ACCESS_PERM_0;
+        } else {
+            if (prot & PROT_READ) {
+                if (prot & PROT_WRITE) {
+                    perm |= PD_ACCESS_PERM_1;
+                } else {
+                    perm |= PD_ACCESS_PERM_3;
+                }
+            }
+        }
+        pte[index] = KVA_TO_PA(page_virt_addr) | PTE_NORMAL_ATTR | perm;
     }
     return (void *) ((pte[index] & ~0xfffULL) | KERNEL_VIRT_BASE);
 }
@@ -214,7 +229,7 @@ static void *create_page(uint64_t *pte, uint32_t index)
 /* Allocate new page for user process and return pages's virtual address
  * Return page address of `uaddr` if success, otherwise return NULL
  */
-void *map_addr_user(void *uaddr)
+void *map_addr_user(void *uaddr, int prot)
 {
     /*
      * virtual user address
@@ -240,7 +255,7 @@ void *map_addr_user(void *uaddr)
     pte = create_pmd_pgd_pte(pmd, pmd_idx);
     if (!pte)
         goto err;
-    page = create_page(pte, pte_idx);
+    page = create_page(pte, pte_idx, prot);
     if (!page)
         goto err;
     return page;

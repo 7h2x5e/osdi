@@ -116,10 +116,8 @@ SYSCALL_ARG1(get_timestamp, int64_t, struct TimeStamp *)
 SYSCALL_ARG2(uart_read, int64_t, void *, size_t)
 SYSCALL_ARG2(uart_write, int64_t, void *, size_t)
 SYSCALL_ARG0(get_taskid, uint32_t)
-int64_t exec(void (*x0)())
-{
-    return INTERNAL_SYSCALL(exec, 1, INPUT_ARGS_1);
-}
+SYSCALL_ARG1(exec, int64_t, void *);
 SYSCALL_ARG0(fork, int64_t)
 SYSCALL_ARG0(exit, int64_t)
 SYSCALL_ARG2(kill, int32_t, pid_t, int32_t)
+SYSCALL_ARG6(mmap, void *, void *, size_t, int32_t, int32_t, void *, int32_t)

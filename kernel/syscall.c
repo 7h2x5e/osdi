@@ -5,6 +5,7 @@
 #include <include/task.h>
 #include <include/types.h>
 #include <include/utils.h>
+#include <include/mman.h>
 
 void syscall_handler(struct TrapFrame *tf)
 {
@@ -41,6 +42,9 @@ void syscall_handler(struct TrapFrame *tf)
         break;
     case SYS_kill:
         ret = sys_kill((pid_t) tf->x[0], (int32_t) tf->x[1]);
+        break;
+    case SYS_mmap:
+        ret = sys_mmap(tf);
         break;
     default:
     }
@@ -79,15 +83,11 @@ int64_t sys_get_taskid()
 
 int64_t sys_exec(struct TrapFrame *tf)
 {
-    const task_t *task = get_current();
-    void *ustack = get_ustacktop_by_id(task->tid);
     /*
-     * User task will resume from 'func' not where to call
-     * exec and use new stack pointer.
+     * The exec() syscall function returns only if an error has occured.
+     * The return value is -1 and the user must call exit() to reclaim pages.
      */
-    tf->elr_el1 = tf->x[0];
-    tf->sp = (uint64_t) ustack;
-    return 0;
+    return do_exec((void *) tf->x[0]);
 }
 
 int64_t sys_fork(struct TrapFrame *tf)
@@ -105,4 +105,11 @@ int64_t sys_exit()
 int64_t sys_kill(pid_t pid, int32_t sig)
 {
     return (int64_t) do_kill(pid, sig);
+}
+
+int64_t sys_mmap(struct TrapFrame *tf)
+{
+    return (int64_t) do_mmap((void *) tf->x[0], (size_t) tf->x[1],
+                             (int32_t) tf->x[2], (int32_t) tf->x[3],
+                             (void *) tf->x[4], (int32_t) tf->x[5]);
 }

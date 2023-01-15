@@ -29,11 +29,7 @@ user/%.asm.o: user/%.S
 user/user.elf: $(LIB_OBJ) $(USER_OBJS)
 	$(LD) -T $(USER_LINKER_FILE) $^ -o $@
 
-user/user.img: user/user.elf
-	$(OBJCPY) -O binary $< $@
-
-# creates an linkable binary object
-user/user.bin: user/user.img 
+user/user.bin: user/user.elf
 	$(LD) -r -b binary $< -o $@
 
 # kernel
