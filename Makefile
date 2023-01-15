@@ -32,4 +32,4 @@ clean:
 	rm -rf kernel8.*
 	rm -rf kernel/*.o kernel/*.elf
 	rm -rf lib/*.o
-	rm -rf user/*.o user/*.elf user/*.bin
+	rm -rf user/*.o user/*.elf user/*.bin user/*.img
