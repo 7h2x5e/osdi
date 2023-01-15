@@ -273,21 +273,30 @@ int fork_page(void *dst, const void *src)
     return 0;
 }
 
-/* return 0 if success, return -1 if fail. */
-#define FORK_PAGE_TABLE(name, callback)                         \
-    int name(uint64_t *dst_pt, const uint64_t *src_pt)          \
-    {                                                           \
-        for (uint16_t idx = 0; idx < (1 << 9); idx++) {         \
-            if (src_pt[idx]) {                                  \
-                const void *next_src_pt =                       \
-                    (const void *) ((src_pt[idx] & ~0xfffULL) | \
-                                    KERNEL_VIRT_BASE);          \
-                void *next_dst_pt = create_page(dst_pt, idx);   \
-                if (-1 == callback(next_dst_pt, next_src_pt))   \
-                    return -1;                                  \
-            }                                                   \
-        }                                                       \
-        return 0;                                               \
+/*
+ * return 0 if success, return -1 if fail.
+ */
+#define FORK_PAGE_TABLE(name, callback)                                      \
+    int name(uint64_t *dst_pt, const uint64_t *src_pt)                       \
+    {                                                                        \
+        if (!dst_pt || !src_pt)                                              \
+            return -1;                                                       \
+        for (uint16_t idx = 0; idx < (1 << 9); idx++) {                      \
+            if (src_pt[idx]) {                                               \
+                const void *next_src_pt =                                    \
+                    (const void *) ((src_pt[idx] & ~0xfffULL) |              \
+                                    KERNEL_VIRT_BASE);                       \
+                void *next_dst_pt = create_pmd_pgd_pte(dst_pt, idx);         \
+                if (!next_dst_pt)                                            \
+                    return -1;                                               \
+                dst_pt[idx] |=                                               \
+                    (src_pt[idx] & ((1ULL << 54) | (1ULL << 53) | (1 << 7) | \
+                                    (1 << 6))); /* copy permisssion bits*/   \
+                if (-1 == callback(next_dst_pt, next_src_pt))                \
+                    return -1;                                               \
+            }                                                                \
+        }                                                                    \
+        return 0;                                                            \
     }
 
 FORK_PAGE_TABLE(fork_pte, fork_page)
@@ -297,7 +306,8 @@ FORK_PAGE_TABLE(fork_pgd, fork_pud)
 
 /*
  * fork page table of user process
- * return 0 if success, return -1 if fail.
+ * return 0 if success, return -1 if fail
+ * if failed, kernel must reclaim pages outside
  */
 int fork_page_table(mm_struct *dst, const mm_struct *src)
 {
@@ -309,6 +319,6 @@ int fork_page_table(mm_struct *dst, const mm_struct *src)
     uint64_t *src_pgd = (uint64_t *) PA_TO_KVA(src->pgd);
     uint64_t *dst_pgd = (uint64_t *) create_pgd(dst);
 
-    // copy page table recursively
-    return fork_pgd(src_pgd, dst_pgd);
+    // copy page table recursively. if failed, reclaim pages outside
+    return fork_pgd(dst_pgd, src_pgd);
 }
