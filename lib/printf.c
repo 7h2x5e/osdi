@@ -45,7 +45,7 @@ unsigned int vsprintf(char *dst, const char *fmt, __builtin_va_list args)
                 arg = __builtin_va_arg(args, int);
                 p = itoa(tmpstr, arg);
                 goto copystring;
-            } else if (*fmt == 'h') {
+            } else if (*fmt == 'x') {
                 // hex number
                 arg = __builtin_va_arg(args, unsigned long long);
                 p = itoh(tmpstr, arg);
