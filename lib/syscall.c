@@ -67,47 +67,47 @@
 #define INTERNAL_SYSCALL(name, nr, args...) \
     INTERNAL_SYSCALL_RAW(SYS_ify(name), nr, args)
 
-#define SYSCALL_ARG0(name, ret_t)                       \
-    ret_t name()                                        \
-    {                                                   \
-        return INTERNAL_SYSCALL(name, 0, INPUT_ARGS_0); \
+#define SYSCALL_ARG0(name, ret_t)                               \
+    ret_t name()                                                \
+    {                                                           \
+        return (ret_t) INTERNAL_SYSCALL(name, 0, INPUT_ARGS_0); \
     }
-#define SYSCALL_ARG1(name, ret_t, type0)                \
-    ret_t name(type0 x0)                                \
-    {                                                   \
-        return INTERNAL_SYSCALL(name, 1, INPUT_ARGS_1); \
+#define SYSCALL_ARG1(name, ret_t, type0)                        \
+    ret_t name(type0 x0)                                        \
+    {                                                           \
+        return (ret_t) INTERNAL_SYSCALL(name, 1, INPUT_ARGS_1); \
     }
-#define SYSCALL_ARG2(name, ret_t, type0, type1)         \
-    ret_t name(type0 x0, type1 x1)                      \
-    {                                                   \
-        return INTERNAL_SYSCALL(name, 2, INPUT_ARGS_2); \
+#define SYSCALL_ARG2(name, ret_t, type0, type1)                 \
+    ret_t name(type0 x0, type1 x1)                              \
+    {                                                           \
+        return (ret_t) INTERNAL_SYSCALL(name, 2, INPUT_ARGS_2); \
     }
-#define SYSCALL_ARG3(name, ret_t, type0, type1, type2)  \
-    ret_t name(type0 x0, type1 x1, type2 x2)            \
-    {                                                   \
-        return INTERNAL_SYSCALL(name, 3, INPUT_ARGS_3); \
+#define SYSCALL_ARG3(name, ret_t, type0, type1, type2)          \
+    ret_t name(type0 x0, type1 x1, type2 x2)                    \
+    {                                                           \
+        return (ret_t) INTERNAL_SYSCALL(name, 3, INPUT_ARGS_3); \
     }
-#define SYSCALL_ARG4(name, ret_t, type0, type1, type2, type3) \
-    ret_t name(type0 x0, type1 x1, type2 x2, type3 x3)        \
-    {                                                         \
-        return INTERNAL_SYSCALL(name, 4, INPUT_ARGS_4);       \
+#define SYSCALL_ARG4(name, ret_t, type0, type1, type2, type3)   \
+    ret_t name(type0 x0, type1 x1, type2 x2, type3 x3)          \
+    {                                                           \
+        return (ret_t) INTERNAL_SYSCALL(name, 4, INPUT_ARGS_4); \
     }
 #define SYSCALL_ARG5(name, ret_t, type0, type1, type2, type3, type4) \
     ret_t name(type0 x0, type1 x1, type2 x2, type3 x3, type4 x4)     \
     {                                                                \
-        return INTERNAL_SYSCALL(name, 5, INPUT_ARGS_5);              \
+        return (ret_t) INTERNAL_SYSCALL(name, 5, INPUT_ARGS_5);      \
     }
 #define SYSCALL_ARG6(name, ret_t, type0, type1, type2, type3, type4, type5) \
     ret_t name(type0 x0, type1 x1, type2 x2, type3 x3, type4 x4, type5 x5)  \
     {                                                                       \
-        return INTERNAL_SYSCALL(name, 6, INPUT_ARGS_6);                     \
+        return (ret_t) INTERNAL_SYSCALL(name, 6, INPUT_ARGS_6);             \
     }
 #define SYSCALL_ARG7(name, ret_t, type0, type1, type2, type3, type4, type5, \
                      type6)                                                 \
     ret_t name(type0 x0, type1 x1, type2 x2, type3 x3, type4 x4, type5 x5,  \
                type6 x6)                                                    \
     {                                                                       \
-        return INTERNAL_SYSCALL(name, 7, INPUT_ARGS_7);                     \
+        return (ret_t) INTERNAL_SYSCALL(name, 7, INPUT_ARGS_7);             \
     }
 
 SYSCALL_ARG1(reset, int64_t, uint64_t)
