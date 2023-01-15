@@ -3,7 +3,7 @@
 #include <include/peripherals/irq.h>
 #include <include/peripherals/timer.h>
 #include <include/peripherals/uart.h>
-#include <include/printk.h>
+#include <include/kernel_log.h>
 #include <include/task.h>
 
 void enable_irq()

@@ -276,7 +276,7 @@ void idle()
         reschedule();
         delay(100000000);
     }
-    printk("Test finished\n");
+    KERNEL_LOG_DEBUG("Test finished");
     while (1)
         ;
 }
@@ -294,9 +294,8 @@ void zombie_reaper()
             {
                 list_del_init(&zt->node);
                 zt->state = TASK_UNUSED;
-                printk(
-                    "[PID %d] Zombie reaper frees process [PID %d] resources\n",
-                    do_get_taskid(), zt->tid);
+                KERNEL_LOG_DEBUG(
+                    "Zombie reaper frees process [PID %d] resources", zt->tid);
             }
         }
     }

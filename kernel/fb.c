@@ -1,6 +1,6 @@
 #include <include/fb.h>
 #include <include/peripherals/mbox.h>
-#include <include/printk.h>
+#include <include/kernel_log.h>
 
 static unsigned int width, height, pitch, isrgb;
 static void *fb;
@@ -68,7 +68,7 @@ void fb_init()
         isrgb = mbox[24];        // get the actual channel order
         fb = (void *) ((unsigned long) mbox[28]);
     } else {
-        printk("Unable to set screen resolution to 1024x768x32\n");
+        KERNEL_LOG_INFO("Unable to set screen resolution to 1024x768x32");
     }
 }
 
