@@ -16,16 +16,16 @@
 #include <include/types.h>
 #include <include/list.h>
 
-#define KVA_TO_PA(addr) ((uint64_t) addr << 16 >> 16)
-#define PA_TO_KVA(addr) ((uint64_t) addr | KERNEL_VIRT_BASE)
-#define PA_TO_PFN(addr) ((uint64_t) addr >> PAGE_SHIFT)
-#define PFN_TO_PA(idx) ((uint64_t) idx << PAGE_SHIFT)
+#define KVA_TO_PA(addr) ((uint64_t) (addr) << 16 >> 16)
+#define PA_TO_KVA(addr) ((uint64_t) (addr) | KERNEL_VIRT_BASE)
+#define PA_TO_PFN(addr) ((uint64_t) (addr) >> PAGE_SHIFT)
+#define PFN_TO_PA(idx) ((uint64_t) (idx) << PAGE_SHIFT)
 
 enum page_flag { PAGE_USED = 1 << 0 };
 
 typedef struct {
     uintptr_t pgd;
-    struct list_head kernel_page_list, user_page_list;
+    struct list_head kernel_page_list;
 } mm_struct;
 typedef struct {
     uint32_t flag;
