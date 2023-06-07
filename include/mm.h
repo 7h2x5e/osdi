@@ -29,8 +29,9 @@ typedef struct {
 } mm_struct;
 typedef struct {
     uint32_t flag;
+    int pfn;
     void *physical;
-    struct list_head next_page;
+    struct list_head head;
 } page_t;
 
 extern page_t page[PAGE_NUM];
@@ -38,7 +39,7 @@ extern page_t page[PAGE_NUM];
 page_t *get_free_page();
 void *page_alloc_kernel();
 void *page_alloc_user();
-void page_free(void *virt_addr);
+void page_free(page_t *);
 
 void mm_struct_init(mm_struct *);
 uint64_t map_addr_user(uint64_t, int prot);

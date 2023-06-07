@@ -5,8 +5,12 @@
 #include <include/types.h>
 #include <include/task.h>
 #include <include/mman.h>
+#include <include/list.h>
+#include <include/kernel_log.h>
 
 page_t page[PAGE_NUM];
+struct list_head free_page_list;
+static size_t free_page_num, used_page_num;
 
 bool is_set(uint32_t target, uint32_t val)
 {
@@ -91,48 +95,57 @@ void page_init()
 {
     extern char _kernel_end;
     int i = 0;
+    INIT_LIST_HEAD(&free_page_list);
     for (; i < PA_TO_PFN(KVA_TO_PA(&_kernel_end)); ++i) {
         // kernel stack + kernel image
         page[i].physical = (void *) ((physaddr_t) i << PAGE_SHIFT);
         page[i].flag = 0;
+        page[i].pfn = i;
         set(&page[i].flag, PAGE_USED);
     }
-    for (; i < PA_TO_PFN(KVA_TO_PA(MMIO_BASE)); ++i) {
+    for (; i < PA_TO_PFN(KVA_TO_PA(MMIO_BASE)); ++i, ++free_page_num) {
+        // add to free page list
+        page[i].physical = (void *) ((physaddr_t) i << PAGE_SHIFT);
         page[i].flag = 0;
+        page[i].pfn = i;
+        list_add(&page[i].head, &free_page_list);
     }
     for (; i < PAGE_NUM; ++i) {
         // MMIO
         page[i].physical = (void *) ((physaddr_t) i << PAGE_SHIFT);
         page[i].flag = 0;
+        page[i].pfn = i;
         set(&page[i].flag, PAGE_USED);
     }
+    used_page_num = 0;
 }
 
+// get a page from page pool
 page_t *get_free_page()
 {
-    extern char _kernel_end;
-    int pfn_start = PA_TO_PFN(KVA_TO_PA(&_kernel_end)),
-        pfn_end = PA_TO_PFN(KVA_TO_PA(MMIO_BASE));
+    page_t *free_page = NULL;
 
-    // find an available page
-    for (; pfn_start < pfn_end && is_set(page[pfn_start].flag, PAGE_USED);
-         ++pfn_start)
-        ;
-    if (pfn_start == pfn_end)
+    // find an available page from free page list
+    if (list_empty(&free_page_list))
         return NULL;
+    free_page = list_first_entry(&free_page_list, page_t, head);
+
+    // sanity check
+    if (is_set(free_page->flag, PAGE_USED)) {
+        KERNEL_LOG_ERROR("page is in use!");
+        return NULL;
+    }
 
     // initialize the page
-    physaddr_t phy_addr = (physaddr_t) pfn_start << PAGE_SHIFT;
-    uintptr_t virt_addr = phy_addr | KERNEL_VIRT_BASE;
+    uintptr_t virt_addr = (physaddr_t) free_page->physical | KERNEL_VIRT_BASE;
     memset((void *) virt_addr, 0, PAGE_SIZE);
-
-    // save to page struct
-    page[pfn_start].physical = (void *) phy_addr;
-    set(&page[pfn_start].flag, PAGE_USED);
-    INIT_LIST_HEAD(&page[pfn_start].next_page);
+    set(&free_page->flag, PAGE_USED);
+    list_del(&free_page->head);
+    free_page_num--;
+    used_page_num++;
 
     // return pointer to page struct
-    return &page[pfn_start];
+    return free_page;
 }
 
 // get a page for kernel space
@@ -145,17 +158,22 @@ void *page_alloc_kernel()
     physaddr_t phy_addr = (physaddr_t) page_ptr->physical;
     uintptr_t virt_addr = phy_addr | KERNEL_VIRT_BASE;
 
+    /* store a allocated page in `mm_struct`. if the page isn't used for page
+     * table but for user space, it'll also be stored in the btree of
+     * `mm_struct`
+     */
     task_t *cur_task = (task_t *) get_current();
-    list_add_tail(&page_ptr->next_page, &cur_task->mm.kernel_page_list);
+    list_add_tail(&page_ptr->head, &cur_task->mm.kernel_page_list);
 
     return (void *) virt_addr;
 }
 
-void page_free(void *virt_addr)
+void page_free(page_t *free_page)
 {
-    int pfn = PA_TO_PFN(KVA_TO_PA((uintptr_t) virt_addr));
-    unset(&page[pfn].flag, PAGE_USED);
-    page[pfn].physical = NULL;
+    unset(&free_page->flag, PAGE_USED);
+    list_add(&free_page->head, &free_page_list);
+    free_page_num++;
+    used_page_num--;
 }
 
 void mm_struct_init(mm_struct *mm)

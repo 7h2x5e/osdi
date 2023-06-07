@@ -84,15 +84,12 @@ static inline int64_t get_pid()
 static inline void reclaim_page(task_t *task)
 {
     page_t *page, *temp_page;
-    void *page_addr;
-
-    list_for_each_entry_safe(page, temp_page, &task->mm.kernel_page_list,
-                             next_page)
+    list_for_each_entry_safe(page, temp_page, &task->mm.kernel_page_list, head)
     {
-        page_addr = page->physical + KERNEL_VIRT_BASE;
-        list_del_init(&page->next_page);
-        page_free(page_addr);
-        KERNEL_LOG_DEBUG("free kernel page, virt addr: %x", page_addr);
+        list_del(&page->head);
+        page_free(page);  // insert into page free list
+        KERNEL_LOG_DEBUG("free kernel page, virt addr: %x",
+                         page->physical + KERNEL_VIRT_BASE);
     }
 }
 
