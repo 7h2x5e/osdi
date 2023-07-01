@@ -17,6 +17,7 @@ enum { UART_POLLING_MODE = false, UART_INTERRUPT_MODE = true };
 void uart_init(unsigned int, bool);
 void uart_flush();
 int8_t uart_handler();
+void uart_set_mode(bool);
 
 /* uart_read & uart_write are used in system call */
 ssize_t _uart_read(void *, size_t);

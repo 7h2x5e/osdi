@@ -94,6 +94,11 @@ void ringbuf_pop(ringbuf_t *rb, void *dst)
     rb->head &= rb->mask;
 }
 
+void uart_set_mode(bool _mode)
+{
+    mode = _mode;
+};
+
 void uart_enable_tx_interrupt()
 {
     *UART0_IMSC |= IMSC_TXIM;
@@ -172,7 +177,8 @@ void uart_init(unsigned int baudrate, bool _mode)
     // deal with qemu bug
     uart_write_polling(0);
 
-    if (UART_INTERRUPT_MODE == (mode = _mode)) {
+    uart_set_mode(_mode);
+    if (UART_INTERRUPT_MODE == mode) {
         // enable UART interrupt
         ringbuf_init(&PL011_TX_QUEUE);
         ringbuf_init(&PL011_RX_QUEUE);
