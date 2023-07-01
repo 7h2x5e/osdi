@@ -24,8 +24,11 @@
 enum page_flag { PAGE_USED = 1 << 0 };
 
 typedef struct {
-    uintptr_t pgd;
-    struct list_head kernel_page_list;
+    uintptr_t pgd;                     /* page global directory */
+    struct list_head kernel_page_list; /* list of allocated kernel pages */
+    struct list_head user_page_list;   /* list of allocated user pages */
+    uint32_t kernel_page_num;          /* number of kernel pages */
+    uint32_t user_page_num;            /* number of user pages */
 } mm_struct;
 typedef struct {
     uint32_t flag;
@@ -36,12 +39,10 @@ typedef struct {
 
 extern page_t page[PAGE_NUM];
 
-page_t *get_free_page();
-void *page_alloc_kernel();
-void *page_alloc_user();
-void page_free(page_t *);
-
+void *page_alloc_kernel(mm_struct *);
+void *page_alloc_user(mm_struct *);
 void mm_struct_init(mm_struct *);
+void mm_struct_destroy(mm_struct *);
 uint64_t map_addr_user(uint64_t, int prot);
 int fork_page_table(mm_struct *, const mm_struct *);
 

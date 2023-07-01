@@ -7,6 +7,7 @@
 #include <include/mman.h>
 #include <include/list.h>
 #include <include/kernel_log.h>
+#include <include/assert.h>
 
 page_t page[PAGE_NUM];
 struct list_head free_page_list;
@@ -121,7 +122,7 @@ void page_init()
 }
 
 // get a page from page pool
-page_t *get_free_page()
+static page_t *get_free_page()
 {
     page_t *free_page = NULL;
 
@@ -149,7 +150,7 @@ page_t *get_free_page()
 }
 
 // get a page for kernel space
-void *page_alloc_kernel()
+void *page_alloc_kernel(mm_struct *mm)
 {
     page_t *page_ptr = get_free_page();
     if (!page_ptr)
@@ -158,28 +159,77 @@ void *page_alloc_kernel()
     physaddr_t phy_addr = (physaddr_t) page_ptr->physical;
     uintptr_t virt_addr = phy_addr | KERNEL_VIRT_BASE;
 
-    /* store a allocated page in `mm_struct`. if the page isn't used for page
-     * table but for user space, it'll also be stored in the btree of
-     * `mm_struct`
-     */
-    task_t *cur_task = (task_t *) get_current();
-    list_add_tail(&page_ptr->head, &cur_task->mm.kernel_page_list);
+    // store a allocated page in kernel page list of mm_struct
+    list_add_tail(&page_ptr->head, &mm->kernel_page_list);
+    mm->kernel_page_num++;
+    // KERNEL_LOG_DEBUG("allocate page for kernel space, page virt addr: %x",
+    // virt_addr);
 
     return (void *) virt_addr;
 }
 
-void page_free(page_t *free_page)
+// get a page for user space
+void *page_alloc_user(mm_struct *mm)
 {
-    unset(&free_page->flag, PAGE_USED);
-    list_add(&free_page->head, &free_page_list);
-    free_page_num++;
-    used_page_num--;
+    page_t *page_ptr = get_free_page();
+    if (!page_ptr)
+        return NULL;
+
+    physaddr_t phy_addr = (physaddr_t) page_ptr->physical;
+    uintptr_t virt_addr = phy_addr | KERNEL_VIRT_BASE;
+
+    // store a allocated page in user page list of mm_struct
+    list_add_tail(&page_ptr->head, &mm->user_page_list);
+    mm->user_page_num++;
+    // KERNEL_LOG_DEBUG("allocate page for user space, page virt addr: %x",
+    // virt_addr);
+
+    return (void *) virt_addr;
+}
+
+static inline void reclaim_page(mm_struct *mm)
+{
+    page_t *free_page, *tmp;
+    list_for_each_entry_safe(free_page, tmp, &mm->user_page_list, head)
+    {
+        list_del(&free_page->head);
+        list_add(&free_page->head, &free_page_list);
+        unset(&free_page->flag, PAGE_USED);
+        free_page_num++;
+        used_page_num--;
+        mm->user_page_num--;
+        // KERNEL_LOG_DEBUG("free user page, virt addr: %x",
+        //                  free_page->physical + KERNEL_VIRT_BASE);
+    }
+    list_for_each_entry_safe(free_page, tmp, &mm->kernel_page_list, head)
+    {
+        list_del(&free_page->head);
+        list_add(&free_page->head, &free_page_list);
+        unset(&free_page->flag, PAGE_USED);
+        free_page_num++;
+        used_page_num--;
+        mm->kernel_page_num--;
+        // KERNEL_LOG_DEBUG("free kernel page, virt addr: %x",
+        //                  free_page->physical + KERNEL_VIRT_BASE);
+    }
 }
 
 void mm_struct_init(mm_struct *mm)
 {
     mm->pgd = (uintptr_t) NULL;
+    mm->kernel_page_num = mm->user_page_num = 0;
     INIT_LIST_HEAD(&mm->kernel_page_list);
+    INIT_LIST_HEAD(&mm->user_page_list);
+}
+
+void mm_struct_destroy(mm_struct *mm)
+{
+    reclaim_page(mm);
+    assert(list_empty(&mm->user_page_list));
+    assert(list_empty(&mm->kernel_page_list));
+    assert(mm->kernel_page_num == 0);
+    assert(mm->user_page_num == 0);
+    mm->pgd = (uintptr_t) NULL;
 }
 
 /* create pgd for user space of a specific process
@@ -189,7 +239,7 @@ static void *create_pgd(mm_struct *mm)
 {
     if (!mm->pgd) {
         // has't created pgd
-        void *page_virt_addr = page_alloc_kernel();
+        void *page_virt_addr = page_alloc_kernel(mm);
         if (!page_virt_addr)
             return NULL;
         mm->pgd = KVA_TO_PA(page_virt_addr);
@@ -200,12 +250,14 @@ static void *create_pgd(mm_struct *mm)
 /* create pud/pmd/pte for user process
  * return virtual address of the pud/pmd/pte if success, otherwise return NULL.
  */
-static void *create_pmd_pgd_pte(uint64_t *page_table, uint32_t index)
+static void *create_pmd_pgd_pte(uint64_t *page_table,
+                                uint32_t index,
+                                mm_struct *mm)
 {
     if (!page_table)
         return NULL;
     if (!page_table[index]) {
-        void *page_virt_addr = page_alloc_kernel();
+        void *page_virt_addr = page_alloc_kernel(mm);
         if (!page_virt_addr)
             return NULL;
         page_table[index] = KVA_TO_PA(page_virt_addr) | PD_TABLE;
@@ -216,12 +268,12 @@ static void *create_pmd_pgd_pte(uint64_t *page_table, uint32_t index)
 /* create page for user process
  * return virtual address of the page if success, otherwise return NULL.
  */
-static void *create_page(uint64_t *pte, uint32_t index, int prot)
+static void *create_page(uint64_t *pte, uint32_t index, int prot, mm_struct *mm)
 {
     if (!pte)
         return NULL;
     if (!pte[index]) {
-        void *page_virt_addr = page_alloc_kernel();
+        void *page_virt_addr = page_alloc_user(mm);
         if (!page_virt_addr)
             return NULL;
         uint64_t perm = 0;
@@ -264,16 +316,16 @@ uint64_t map_addr_user(uint64_t uaddr, int prot)
     pgd = create_pgd(&cur_task->mm);
     if (!pgd)
         goto err;
-    pud = create_pmd_pgd_pte(pgd, pgd_idx);
+    pud = create_pmd_pgd_pte(pgd, pgd_idx, &cur_task->mm);
     if (!pud)
         goto err;
-    pmd = create_pmd_pgd_pte(pud, pud_idx);
+    pmd = create_pmd_pgd_pte(pud, pud_idx, &cur_task->mm);
     if (!pmd)
         goto err;
-    pte = create_pmd_pgd_pte(pmd, pmd_idx);
+    pte = create_pmd_pgd_pte(pmd, pmd_idx, &cur_task->mm);
     if (!pte)
         goto err;
-    page = create_page(pte, pte_idx, prot);
+    page = create_page(pte, pte_idx, prot, &cur_task->mm);
     if (!page)
         goto err;
     return (uint64_t) page;
@@ -289,11 +341,35 @@ int fork_page(void *dst, const void *src)
     return 0;
 }
 
+int fork_pte(uint64_t *dst_pt, const uint64_t *src_pt, mm_struct *dst_mm)
+{
+    if (!dst_pt || !src_pt)
+        return -1;
+    for (uint16_t idx = 0; idx < (1 << 9); idx++) {
+        if (src_pt[idx]) {
+            const void *next_src_pt =
+                (const void *) ((src_pt[idx] & ~0xfffULL) | KERNEL_VIRT_BASE);
+            void *next_dst_pt = create_page(
+                dst_pt, idx, 0, dst_mm); /* set permission bits later */
+            if (!next_dst_pt)
+                return -1;
+            dst_pt[idx] &=
+                ~((3ULL << 53) | (3ULL << 6)); /* clear permission bits */
+            dst_pt[idx] |=
+                (src_pt[idx] & ((1ULL << 54) | (1ULL << 53) | (1 << 7) |
+                                (1 << 6))); /* copy permisssion bits */
+            if (-1 == fork_page(next_dst_pt, next_src_pt))
+                return -1;
+        }
+    }
+    return 0;
+}
+
 /*
  * return 0 if success, return -1 if fail.
  */
 #define FORK_PAGE_TABLE(name, callback)                                      \
-    int name(uint64_t *dst_pt, const uint64_t *src_pt)                       \
+    int name(uint64_t *dst_pt, const uint64_t *src_pt, mm_struct *dst_mm)    \
     {                                                                        \
         if (!dst_pt || !src_pt)                                              \
             return -1;                                                       \
@@ -302,20 +378,19 @@ int fork_page(void *dst, const void *src)
                 const void *next_src_pt =                                    \
                     (const void *) ((src_pt[idx] & ~0xfffULL) |              \
                                     KERNEL_VIRT_BASE);                       \
-                void *next_dst_pt = create_pmd_pgd_pte(dst_pt, idx);         \
+                void *next_dst_pt = create_pmd_pgd_pte(dst_pt, idx, dst_mm); \
                 if (!next_dst_pt)                                            \
                     return -1;                                               \
                 dst_pt[idx] |=                                               \
                     (src_pt[idx] & ((1ULL << 54) | (1ULL << 53) | (1 << 7) | \
                                     (1 << 6))); /* copy permisssion bits*/   \
-                if (-1 == callback(next_dst_pt, next_src_pt))                \
+                if (-1 == callback(next_dst_pt, next_src_pt, dst_mm))        \
                     return -1;                                               \
             }                                                                \
         }                                                                    \
         return 0;                                                            \
     }
 
-FORK_PAGE_TABLE(fork_pte, fork_page)
 FORK_PAGE_TABLE(fork_pmd, fork_pte)
 FORK_PAGE_TABLE(fork_pud, fork_pmd)
 FORK_PAGE_TABLE(fork_pgd, fork_pud)
@@ -336,5 +411,37 @@ int fork_page_table(mm_struct *dst, const mm_struct *src)
     uint64_t *dst_pgd = (uint64_t *) create_pgd(dst);
 
     // copy page table recursively. if failed, reclaim pages outside
-    return fork_pgd(dst_pgd, src_pgd);
+    return fork_pgd(dst_pgd, src_pgd, dst);
+}
+
+void btree_page_init()
+{
+    INIT_LIST_HEAD(&free_btree_page_list);
+    for (int i = 0; i < BTREE_PAGE_NUM; i++) {
+        list_add(&b_page[i].head, &free_btree_page_list);
+    }
+    free_btree_page_num = BTREE_PAGE_NUM;
+    used_btree_page_num = 0;
+}
+
+void *btree_page_malloc(size_t size)
+{
+    if (list_empty(&free_btree_page_list) || free_btree_page_num == 0)
+        return NULL;
+    btree_page_t *p =
+        list_first_entry(&free_btree_page_list, btree_page_t, head);
+    list_del(&p->head);
+    free_btree_page_num--;
+    used_btree_page_num++;
+    return (void *) p;
+}
+
+void btree_page_free(void *ptr)
+{
+    if (!ptr)
+        return;
+    btree_page_t *p = (btree_page_t *) ptr;
+    list_add(&p->head, &free_btree_page_list);
+    free_btree_page_num++;
+    used_btree_page_num--;
 }

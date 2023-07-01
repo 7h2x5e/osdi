@@ -81,18 +81,6 @@ static inline int64_t get_pid()
     return -1;
 }
 
-static inline void reclaim_page(task_t *task)
-{
-    page_t *page, *temp_page;
-    list_for_each_entry_safe(page, temp_page, &task->mm.kernel_page_list, head)
-    {
-        list_del(&page->head);
-        page_free(page);  // insert into page free list
-        KERNEL_LOG_DEBUG("free kernel page, virt addr: %x",
-                         page->physical + KERNEL_VIRT_BASE);
-    }
-}
-
 /*
  * The exec() functions return only if an error has occurred. The return value
  * is -1. User must call exit() to reclaim resources after error occured.
@@ -206,7 +194,7 @@ int64_t do_fork(struct TrapFrame *tf)
         /* reclaim new task's resource */
         new_task->state = TASK_ZOMBIE;
         list_add_tail(&new_task->node, &zombie_list);
-        reclaim_page(new_task);
+        mm_struct_destroy(&new_task->mm);
         return -1;
     }
 
@@ -235,7 +223,7 @@ void do_exit()
     task_t *cur = (task_t *) get_current();
     cur->state = TASK_ZOMBIE;
     list_add_tail(&cur->node, &zombie_list);
-    reclaim_page(cur);
+    mm_struct_destroy(&cur->mm);
     schedule();
     __builtin_unreachable();
 }
