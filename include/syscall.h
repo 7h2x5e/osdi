@@ -17,7 +17,8 @@ enum {
     SYS_fork,
     SYS_exit,
     SYS_kill,
-    SYS_mmap
+    SYS_mmap,
+    SYS_munmap
 };
 
 void syscall_handler(struct TrapFrame *tf);
@@ -34,6 +35,7 @@ int64_t fork();
 int64_t exit();
 int32_t kill(pid_t, int32_t);
 void *mmap(void *, size_t, int32_t, int32_t, void *, int32_t);
+int32_t munmap(void *, size_t);
 
 /* wrapper */
 int64_t sys_reset(uint64_t);
@@ -47,5 +49,6 @@ int64_t sys_fork(struct TrapFrame *);
 int64_t sys_exit();
 int64_t sys_kill(pid_t, int32_t);
 int64_t sys_mmap(struct TrapFrame *);
+int64_t sys_munmap(struct TrapFrame *);
 
 #endif

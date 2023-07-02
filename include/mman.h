@@ -20,5 +20,6 @@ uint64_t do_mmap(uint64_t addr,
                  uint32_t flags,
                  uint64_t file_start,
                  uint64_t file_offset);
+int32_t do_munmap(uint64_t addr, uint64_t length);
 
 #endif

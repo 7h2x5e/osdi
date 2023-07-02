@@ -46,6 +46,9 @@ void syscall_handler(struct TrapFrame *tf)
     case SYS_mmap:
         ret = sys_mmap(tf);
         break;
+    case SYS_munmap:
+        ret = sys_munmap(tf);
+        break;
     default:
     }
     tf->x[0] = (uint64_t) ret;
@@ -111,4 +114,9 @@ int64_t sys_mmap(struct TrapFrame *tf)
 {
     return (int64_t) do_mmap(tf->x[0], tf->x[1], (uint32_t) tf->x[2],
                              (uint32_t) tf->x[3], tf->x[4], tf->x[5]);
+}
+
+int64_t sys_munmap(struct TrapFrame *tf)
+{
+    return (int64_t) do_munmap(tf->x[0], tf->x[1]);
 }

@@ -149,7 +149,7 @@ int do_exec(uint64_t bin_start)
     /* allocate stack */
     if (MAP_FAILED == do_mmap(sp, PAGE_SIZE, PROT_READ | PROT_WRITE,
                               MAP_ANONYMOUS, (uint64_t) NULL, 0)) {
-        // TODO: munmap
+        do_munmap(sp, PAGE_SIZE);
         return -1;
     }
 

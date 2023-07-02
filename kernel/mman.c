@@ -119,7 +119,7 @@ uint64_t do_mmap(uint64_t addr,
         if (!(p_addr = map_addr_user(tmp_addr, prot))) {
             KERNEL_LOG_DEBUG("Cannot allocate page for user space, addr=%x",
                              tmp_addr);
-            // TODO: munmap
+            do_munmap(tmp_addr, PAGE_SIZE);
             goto _do_mmap_err;
         }
 
@@ -149,7 +149,35 @@ uint64_t do_mmap(uint64_t addr,
 _do_mmap_err:
     for (uint64_t free_addr = v_addr; free_addr < tmp_addr;
          free_addr += PAGE_SIZE) {
-        // TODO: munmap
+        do_munmap(free_addr, PAGE_SIZE);
     }
     return MAP_FAILED;
+}
+
+/* On success, munmap() returns 0.  On failure, it returns -1 */
+int32_t do_munmap(uint64_t addr, uint64_t length)
+{
+    length =
+        ROUNDUP(length, PAGE_SIZE);  // length must be a multiple of PAGE_SIZE
+
+    /* retrieve B-Tree from mm_struct */
+    task_t *cur = (task_t *) get_current();
+    btree *bt = &cur->mm.mm_bt;
+
+    uint64_t _start;
+    for (uint64_t tmp_addr = addr; length > 0;
+         length -= PAGE_SIZE, tmp_addr += PAGE_SIZE) {
+        if (bt_find_empty_area(bt->root, tmp_addr, tmp_addr + PAGE_SIZE,
+                               PAGE_SIZE, &_start)) {
+            KERNEL_LOG_DEBUG("Cannot find indicated range [%x, %x) in btree",
+                             tmp_addr, tmp_addr + PAGE_SIZE);
+            continue;
+        }
+
+        KERNEL_LOG_DEBUG("Unmap page, virtual addr [%x, %x)", tmp_addr,
+                         tmp_addr + PAGE_SIZE);
+        //@todo remove indicated range from btree
+        //@todo invalidate page entry
+    }
+    return 0;
 }
