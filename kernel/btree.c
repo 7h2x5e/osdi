@@ -5,17 +5,8 @@
 #include <include/assert.h>
 #include <include/kernel_log.h>
 
-#if 1
-static void *_f(size_t x)
-{
-    return NULL;
-};
-#define malloc(x) _f(x)
-#define free(x) _f(x)
-#else
-#define malloc(x) btree_malloc(x)
-#define free(x) btree_free(x)
-#endif
+#define malloc(x) btree_page_malloc(x)
+#define free(x) btree_page_free(x)
 #define KEY_MAX 4 /* must >= 2 */
 
 static bool is_minimum(b_key *key)

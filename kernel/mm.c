@@ -8,10 +8,26 @@
 #include <include/list.h>
 #include <include/kernel_log.h>
 #include <include/assert.h>
+#include <include/btree.h>
+
+#define BTREE_PAGE_NUM (1 << 13) /* 8192 */
 
 page_t page[PAGE_NUM];
 struct list_head free_page_list;
 static size_t free_page_num, used_page_num;
+
+typedef struct _btree_page {
+    struct list_head head;
+    union {
+        b_key _x;
+        b_node _y;
+        btree _z;
+    };
+} btree_page_t;
+
+btree_page_t b_page[BTREE_PAGE_NUM];
+struct list_head free_btree_page_list;
+static size_t free_btree_page_num, used_btree_page_num;
 
 bool is_set(uint32_t target, uint32_t val)
 {
@@ -220,10 +236,14 @@ void mm_struct_init(mm_struct *mm)
     mm->kernel_page_num = mm->user_page_num = 0;
     INIT_LIST_HEAD(&mm->kernel_page_list);
     INIT_LIST_HEAD(&mm->user_page_list);
+    bt_init(&mm->mm_bt);
+    assert(!list_empty(&mm->mm_bt.b_key_h));
 }
 
 void mm_struct_destroy(mm_struct *mm)
 {
+    bt_destroy(&mm->mm_bt);
+    assert(list_empty(&mm->mm_bt.b_key_h));
     reclaim_page(mm);
     assert(list_empty(&mm->user_page_list));
     assert(list_empty(&mm->kernel_page_list));

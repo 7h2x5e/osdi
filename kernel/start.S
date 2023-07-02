@@ -73,6 +73,7 @@ boot_rest:
 	bl      memzero
 
     bl      page_init
+    bl      btree_page_init
     bl      main
     
     // for failsafe

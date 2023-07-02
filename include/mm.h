@@ -15,6 +15,7 @@
 
 #include <include/types.h>
 #include <include/list.h>
+#include <include/btree.h>
 
 #define KVA_TO_PA(addr) ((uint64_t) (addr) << 16 >> 16)
 #define PA_TO_KVA(addr) ((uint64_t) (addr) | KERNEL_VIRT_BASE)
@@ -29,6 +30,7 @@ typedef struct {
     struct list_head user_page_list;   /* list of allocated user pages */
     uint32_t kernel_page_num;          /* number of kernel pages */
     uint32_t user_page_num;            /* number of user pages */
+    btree mm_bt;                       /* use B-Tree to manage user pages */
 } mm_struct;
 typedef struct {
     uint32_t flag;
@@ -45,6 +47,8 @@ void mm_struct_init(mm_struct *);
 void mm_struct_destroy(mm_struct *);
 uint64_t map_addr_user(uint64_t, int prot);
 int fork_page_table(mm_struct *, const mm_struct *);
+void *btree_page_malloc(size_t size);
+void btree_page_free(void *ptr);
 
 #endif
 #endif
