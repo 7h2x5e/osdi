@@ -4,7 +4,10 @@
 #include <include/kernel_log.h>
 #include <include/task.h>
 #include <include/string.h>
+#include <include/btree.h>
+#include <include/error.h>
 
+#if 0
 #define NO_AVAILABLE_REGION ((uint64_t) -1)
 
 /*
@@ -54,10 +57,13 @@ static inline uint64_t find_available_region(uint64_t uaddr)
     }
     return uaddr;
 }
+#endif
 
 
 /*
- * return regions' start address if succeeded or MAP_FAILED if failed
+ * return regions' start address if succeeded or MAP_FAILED if failed. all user
+ * pages containing a part of the indicated range will result in returning
+ * MAP_FAILED
  */
 uint64_t do_mmap(uint64_t addr,
                  uint64_t len,
@@ -66,19 +72,24 @@ uint64_t do_mmap(uint64_t addr,
                  uint64_t file_start,
                  uint64_t file_offset)
 {
+    uint32_t err;
+
+    /* retrieve B-Tree from mm_struct */
+    task_t *cur = (task_t *) get_current();
+    btree *bt = &cur->mm.mm_bt;
+
     /* align page address */
     uint64_t v_addr = ROUNDDOWN(addr, PAGE_SIZE);
 
     /* align region length */
     len = ROUNDUP(len, PAGE_SIZE);
 
-    /* align file_offset*/
-    if (file_offset != ROUNDDOWN(file_offset, PAGE_SIZE)) {
-        return MAP_FAILED;
-    }
-
     /* get regions' start address */
-    if (NO_AVAILABLE_REGION == (v_addr = find_available_region(v_addr))) {
+    if (!(bt->max > v_addr && bt->max - v_addr >= len)) {
+        KERNEL_LOG_DEBUG("no available memory area");
+        return MAP_FAILED;
+    } else if (!bt_find_empty_area(bt->root, v_addr, bt->max, len, &v_addr)) {
+        KERNEL_LOG_DEBUG("no available memory area");
         return MAP_FAILED;
     }
 
@@ -86,13 +97,30 @@ uint64_t do_mmap(uint64_t addr,
         return MAP_FAILED;
     }
 
+    /* align file_offset */
+    if (file_offset != ROUNDDOWN(file_offset, PAGE_SIZE)) {
+        return MAP_FAILED;
+    }
+
+    KERNEL_LOG_DEBUG("addr = %x, v_addr = %x", addr, v_addr);
+
     /* allocate page with protections */
     size_t old_len = len;
     uint64_t tmp_addr = v_addr, p_addr, f_addr = file_start + file_offset;
     while (len > 0) {
+        if ((err = bt_insert_range(&bt->root, tmp_addr, tmp_addr + PAGE_SIZE,
+                                   PAGE_SIZE, NULL))) {
+            KERNEL_LOG_DEBUG(
+                "Cannot insert region in btree, addr = %x, err = %d", tmp_addr,
+                err);
+            goto _do_mmap_err;
+        }
+
         if (!(p_addr = map_addr_user(tmp_addr, prot))) {
-            // TODO: munmap()
-            return MAP_FAILED;
+            KERNEL_LOG_DEBUG("Cannot allocate page for user space, addr=%x",
+                             tmp_addr);
+            // TODO: munmap
+            goto _do_mmap_err;
         }
 
         /*
@@ -117,4 +145,11 @@ uint64_t do_mmap(uint64_t addr,
     len = old_len;  // restore len
 
     return v_addr;
+
+_do_mmap_err:
+    for (uint64_t free_addr = v_addr; free_addr < tmp_addr;
+         free_addr += PAGE_SIZE) {
+        // TODO: munmap
+    }
+    return MAP_FAILED;
 }
