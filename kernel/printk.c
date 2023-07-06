@@ -6,12 +6,13 @@
 
 static inline int putc_k(unsigned char c)
 {
+    /* To prevent kernel from stucking by ring buffer, we don't check if
+     * successfully write or not. User should print as less as possible in
+     * kernel */
     if (c == '\n') {
-        while (1 != _uart_write(&(char[1]){'\r'}, 1)) {
-        }
+        _uart_write(&(char[1]){'\r'}, 1);
     }
-    while (1 != _uart_write(&(char[1]){c}, 1)) {
-    }
+    _uart_write(&(char[1]){c}, 1);
     return (int) c;
 }
 
