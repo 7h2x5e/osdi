@@ -9,7 +9,7 @@
 #define free(x) btree_page_free(x)
 #define KEY_MAX 4 /* must >= 2 */
 
-static bool is_minimum(b_key *key)
+bool is_minimum(b_key *key)
 {
     if (key && key->start == key->end && (key->entry == 0)) {
         return true;
@@ -17,7 +17,7 @@ static bool is_minimum(b_key *key)
     return false;
 }
 
-static bool is_maximum(b_key *key)
+bool is_maximum(b_key *key)
 {
     if (key && key->start == key->end && ((uint64_t) key->entry == 1)) {
         return true;

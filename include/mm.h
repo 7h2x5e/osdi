@@ -49,6 +49,7 @@ uint64_t map_addr_user(uint64_t, int prot);
 int fork_page_table(mm_struct *, const mm_struct *);
 void *btree_page_malloc(size_t size);
 void btree_page_free(void *ptr);
+int fork_btree(mm_struct *, const mm_struct *);
 
 #endif
 #endif

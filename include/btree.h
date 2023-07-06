@@ -32,6 +32,8 @@ struct _btree {
     uint64_t min, max;
 };
 
+bool is_minimum(b_key *);
+bool is_maximum(b_key *);
 void bt_init(btree *);
 void bt_destroy(btree *);
 b_key *bt_find_empty_area(b_node *node,

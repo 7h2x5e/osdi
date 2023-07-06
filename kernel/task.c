@@ -190,7 +190,8 @@ int64_t do_fork(struct TrapFrame *tf)
     const task_t *cur_task = get_current();
 
     // fork page table
-    if (-1 == fork_page_table(&new_task->mm, &cur_task->mm)) {
+    if (-1 == fork_page_table(&new_task->mm, &cur_task->mm) ||
+        -1 == fork_btree(&new_task->mm, &cur_task->mm)) {
         /* reclaim new task's resource */
         new_task->state = TASK_ZOMBIE;
         list_add_tail(&new_task->node, &zombie_list);

@@ -465,3 +465,29 @@ void btree_page_free(void *ptr)
     free_btree_page_num++;
     used_btree_page_num--;
 }
+
+/* return 0 if success, return -1 if fail */
+int fork_btree(mm_struct *mm_dst, const mm_struct *mm_src)
+{
+    uint32_t err;
+    b_key *tmp;
+    btree *dst = &mm_dst->mm_bt;
+    const btree *src = &mm_src->mm_bt;
+    list_for_each_entry(tmp, &src->b_key_h, b_key_h)
+    {
+        if (is_minimum(tmp) || is_maximum(tmp))
+            continue;
+
+        assert((tmp->start + PAGE_SIZE) == tmp->end);
+
+        KERNEL_LOG_DEBUG("Fork region [%x, %x)", tmp->start, tmp->end);
+
+        if ((err = bt_insert_range(&dst->root, tmp->start, tmp->end, PAGE_SIZE,
+                                   NULL))) {
+            KERNEL_LOG_ERROR("Cannot fork region [%x, %x), err=%d", tmp->start,
+                             tmp->end, err);
+            return -1;
+        }
+    }
+    return 0;
+}
