@@ -18,8 +18,8 @@
 void required_3_5()
 {
     extern char _binary_user_user_elf_start;
-    void *start = (void *) &_binary_user_user_elf_start;
-    if (-1 == do_exec(start)) {
+    uint64_t start = (uint64_t) &_binary_user_user_elf_start;
+    if (-1 == do_exec((uint64_t) start)) {
         do_exit();
     }
 }

@@ -87,7 +87,7 @@ int64_t sys_exec(struct TrapFrame *tf)
      * The exec() syscall function returns only if an error has occured.
      * The return value is -1 and the user must call exit() to reclaim pages.
      */
-    return do_exec((void *) tf->x[0]);
+    return do_exec(tf->x[0]);
 }
 
 int64_t sys_fork(struct TrapFrame *tf)
@@ -109,7 +109,6 @@ int64_t sys_kill(pid_t pid, int32_t sig)
 
 int64_t sys_mmap(struct TrapFrame *tf)
 {
-    return (int64_t) do_mmap((void *) tf->x[0], (size_t) tf->x[1],
-                             (int32_t) tf->x[2], (int32_t) tf->x[3],
-                             (void *) tf->x[4], (int32_t) tf->x[5]);
+    return (int64_t) do_mmap(tf->x[0], tf->x[1], (uint32_t) tf->x[2],
+                             (uint32_t) tf->x[3], tf->x[4], tf->x[5]);
 }

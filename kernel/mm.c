@@ -227,9 +227,9 @@ static void *create_page(uint64_t *pte, uint32_t index, int prot)
 }
 
 /* Allocate new page for user process and return pages's virtual address
- * Return page address of `uaddr` if success, otherwise return NULL
+ * Return page address of `uaddr` if success, otherwise return 0
  */
-void *map_addr_user(void *uaddr, int prot)
+uint64_t map_addr_user(uint64_t uaddr, int prot)
 {
     /*
      * virtual user address
@@ -237,10 +237,10 @@ void *map_addr_user(void *uaddr, int prot)
      *      16          9           9           9          9         12
      */
     task_t *cur_task = (task_t *) get_current();
-    uint32_t pgd_idx = ((uint64_t) uaddr & (PD_MASK << PGD_SHIFT)) >> PGD_SHIFT;
-    uint32_t pud_idx = ((uint64_t) uaddr & (PD_MASK << PUD_SHIFT)) >> PUD_SHIFT;
-    uint32_t pmd_idx = ((uint64_t) uaddr & (PD_MASK << PMD_SHIFT)) >> PMD_SHIFT;
-    uint32_t pte_idx = ((uint64_t) uaddr & (PD_MASK << PTE_SHIFT)) >> PTE_SHIFT;
+    uint32_t pgd_idx = (uaddr & (PD_MASK << PGD_SHIFT)) >> PGD_SHIFT;
+    uint32_t pud_idx = (uaddr & (PD_MASK << PUD_SHIFT)) >> PUD_SHIFT;
+    uint32_t pmd_idx = (uaddr & (PD_MASK << PMD_SHIFT)) >> PMD_SHIFT;
+    uint32_t pte_idx = (uaddr & (PD_MASK << PTE_SHIFT)) >> PTE_SHIFT;
 
     void *pgd, *pud, *pmd, *pte, *page;
     pgd = create_pgd(&cur_task->mm);
@@ -258,9 +258,9 @@ void *map_addr_user(void *uaddr, int prot)
     page = create_page(pte, pte_idx, prot);
     if (!page)
         goto err;
-    return page;
+    return (uint64_t) page;
 err:
-    return NULL;
+    return 0;
 }
 
 int fork_page(void *dst, const void *src)

@@ -82,7 +82,7 @@ void *get_ustack_by_id(uint32_t);
 void *get_kstacktop_by_id(uint32_t);
 void *get_ustacktop_by_id(uint32_t);
 uint32_t do_get_taskid();
-int do_exec(void *);
+int do_exec(uint64_t);
 int64_t do_fork(struct TrapFrame *);
 void do_exit();
 int64_t privilege_task_create(void (*)());

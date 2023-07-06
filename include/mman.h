@@ -12,8 +12,13 @@
 #define MAP_ANONYMOUS 0x0020
 #define MAP_POPULATE 0x8000
 
-#define MAP_FAILED ((void *) -1)
+#define MAP_FAILED ((uint64_t) -1)
 
-void *do_mmap(void *, size_t, int, int, void *, int);
+uint64_t do_mmap(uint64_t addr,
+                 uint64_t len,
+                 uint32_t prot,
+                 uint32_t flags,
+                 uint64_t file_start,
+                 uint64_t file_offset);
 
 #endif

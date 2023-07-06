@@ -100,7 +100,7 @@ static inline void reclaim_page(task_t *task)
  * The exec() functions return only if an error has occurred. The return value
  * is -1. User must call exit() to reclaim resources after error occured.
  */
-int do_exec(void *bin_start)
+int do_exec(uint64_t bin_start)
 {
     uintptr_t sp =
         USER_VIRT_TOP -
@@ -130,29 +130,43 @@ int do_exec(void *bin_start)
             break;
         }
     }
+    if (elf64_phdr->p_type != PT_LOAD) {
+        KERNEL_LOG_INFO("Could not find loadable segment!");
+        return -1;
+    }
 
-    /* With the MAP_FIXED flag, some parameters need to be aligned to page size
+    /*    p_vaddr_aligned
+     *    v
+     *    |----------------- virtual space -----------------|
+     *   /                                                 /
+     *  /                                                 /
+     * |-----| loadable segment = MAX(p_memsz, p_filesz) |
+     * ^     ^
+     * |     p_offset
+     * p_offset_aligned
      */
-    void *p_vaddr = (void *) elf64_phdr->p_vaddr;
-    size_t p_filesz = elf64_phdr->p_filesz;
-    int p_flags = elf64_phdr->p_flags;
-    int p_offset = elf64_phdr->p_offset;
-    int p_memsz = elf64_phdr->p_memsz;
-    void *_addr = ROUNDDOWN(p_vaddr, PAGE_SIZE);
-    int _file_offset = ROUNDDOWN(p_offset, PAGE_SIZE);
-    size_t _len = MAX(p_memsz, p_filesz) + (p_offset - _file_offset);
+    uint64_t p_vaddr = elf64_phdr->p_vaddr;
+    uint64_t p_filesz = elf64_phdr->p_filesz;
+    uint32_t p_flags = elf64_phdr->p_flags;
+    uint64_t p_offset = elf64_phdr->p_offset;
+    uint64_t p_memsz = elf64_phdr->p_memsz;
+    uint64_t p_vaddr_aligned = ROUNDDOWN(p_vaddr, PAGE_SIZE);
+    uint64_t p_offset_aligned = ROUNDDOWN(p_offset, PAGE_SIZE);
 
     /* allocate memory for .txt & .bss section */
-    if (MAP_FAILED == do_mmap(_addr, _len, p_flags, MAP_FIXED | MAP_POPULATE,
-                              bin_start,
-                              _file_offset))  // MAP_POPULATE can be removed if
-                                              // demand paging implemented
+    /* TODO: MAP_POPULATE can be removed if demand paging implements */
+    if (MAP_FAILED ==
+        do_mmap(p_vaddr_aligned,
+                MAX(p_memsz, p_filesz) + (p_offset - p_offset_aligned), p_flags,
+                MAP_FIXED | MAP_POPULATE, bin_start, p_offset_aligned))
         return -1;
 
     /* allocate stack */
-    if (MAP_FAILED == do_mmap((void *) sp, PAGE_SIZE, PROT_READ | PROT_WRITE,
-                              MAP_ANONYMOUS, NULL, 0))
+    if (MAP_FAILED == do_mmap(sp, PAGE_SIZE, PROT_READ | PROT_WRITE,
+                              MAP_ANONYMOUS, (uint64_t) NULL, 0)) {
+        // TODO: munmap
         return -1;
+    }
 
     /* update ttbr0_el1 */
     const task_t *task = get_current();
@@ -160,8 +174,9 @@ int do_exec(void *bin_start)
 
     /* zerofill .bss section */
     if (p_memsz > p_filesz) {
-        memset(_addr + (p_offset - _file_offset) + p_filesz, 0,
-               p_memsz - p_filesz);
+        memset((void *) (p_vaddr_aligned + (p_offset - p_offset_aligned) +
+                         p_filesz),
+               0, p_memsz - p_filesz);
     }
 
     /* switch to el0 */
@@ -170,7 +185,8 @@ int do_exec(void *bin_start)
         "msr     elr_el1, %1\n\t"
         "msr     spsr_el1, %2\n\t"
         "eret" ::"r"(sp),
-        "r"(_addr + (p_offset - _file_offset)), "r"(SPSR_EL1_VALUE));
+        "r"(p_vaddr_aligned + (p_offset - p_offset_aligned)),
+        "r"(SPSR_EL1_VALUE));
     __builtin_unreachable();
 }
 
