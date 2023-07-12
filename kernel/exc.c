@@ -43,7 +43,7 @@ static inline void inst_abort_handler(struct TrapFrame *tf)
 {
     uint32_t ISS = (tf->esr_el1) & ((1 << ESR_ELx_IL_SHIFT) - 1),
              IFSC = ISS & 0b111111;
-    KERNEL_LOG_ERROR("Instruction Abort! IFSC 0x%x", do_get_taskid(), IFSC);
+    KERNEL_LOG_ERROR("Instruction Abort! IFSC 0x%x", IFSC);
     page_fault_handler();
 }
 
