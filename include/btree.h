@@ -36,6 +36,7 @@ bool is_minimum(b_key *);
 bool is_maximum(b_key *);
 void bt_init(btree *);
 void bt_destroy(btree *);
+b_key *bt_find_key(b_node *node, uint64_t start);
 b_key *bt_find_empty_area(b_node *node,
                           uint64_t min,
                           uint64_t max,

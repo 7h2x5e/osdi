@@ -515,6 +515,54 @@ b_key *bt_find_empty_area(b_node *node,
     return NULL;
 }
 
+/* search from the start up until an key is found. return NULL if not found */
+b_key *bt_find_key(b_node *node, uint64_t start)
+{
+    if (!node || !node->count)
+        return NULL;
+
+    if (!(node->min <= start && node->max > start)) {
+        return NULL;
+    }
+
+    if (node->type == BTREE_EXTERNAL_NODE) {
+        b_key *cur;
+
+        /* iterate all keys of the node */
+        list_for_each_entry(cur, &node->key_h, key_h)
+        {
+            if (!is_maximum(cur) && !is_minimum(cur) && cur->start >= start)
+                return cur;
+        }
+        return NULL;
+    }
+
+    if (node->type == BTREE_INTERNAL_NODE) {
+        b_key *key, *pos;
+        b_node *n;
+
+        /* find the key that meets the equation key->start >= start */
+        list_for_each_entry(pos, &node->key_h, key_h)
+        {
+            key = pos;
+            if (key->start >= start)
+                break;
+        }
+
+        if (key->start == start) {
+            return key; /* found */
+        } else if (key->start > start) {
+            n = key->c_left; /* maybe in left tree */
+        } else {
+            n = key->c_right; /* maybe in right tree */
+        }
+
+        return bt_find_key(n, start);
+    }
+
+    return NULL;
+}
+
 /* return zero if success, otherwise return error number */
 uint32_t bt_insert_range(b_node **root,
                          uint64_t start,
