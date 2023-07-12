@@ -106,36 +106,23 @@ uint64_t do_mmap(uint64_t addr,
 
     /* allocate page with protections */
     size_t old_len = len;
-    uint64_t tmp_addr = v_addr, p_addr, f_addr = file_start + file_offset;
+    uint64_t tmp_addr = v_addr, f_addr = file_start + file_offset;
     while (len > 0) {
-        if ((err = bt_insert_range(&bt->root, tmp_addr, tmp_addr + PAGE_SIZE,
-                                   PAGE_SIZE, NULL))) {
+        /* demand paging. store page info and load it when page fault happens */
+        if (file_start > 0) {
+            /* load 1 page from f_addr in page fault handler */
+            err = bt_insert_range(&bt->root, tmp_addr, tmp_addr + PAGE_SIZE,
+                                  PAGE_SIZE, NULL, f_addr, PAGE_SIZE, prot);
+        } else {
+            err = bt_insert_range(&bt->root, tmp_addr, tmp_addr + PAGE_SIZE,
+                                  PAGE_SIZE, NULL, 0, 0, prot);
+        }
+
+        if (err) {
             KERNEL_LOG_DEBUG(
                 "Cannot insert region in btree, addr = %x, err = %d", tmp_addr,
                 err);
             goto _do_mmap_err;
-        }
-
-        if (!(p_addr = map_addr_user(tmp_addr, prot))) {
-            KERNEL_LOG_DEBUG("Cannot allocate page for user space, addr=%x",
-                             tmp_addr);
-            do_munmap(tmp_addr, PAGE_SIZE);
-            goto _do_mmap_err;
-        }
-
-        /*
-         * Region page mapping
-         *
-         * If the region maps to anonymous page frames, kernel should:
-         * 1. allocate page frames
-         * 2. map memory region to page frames and set page attributes according
-         * to region's protection policy
-         *
-         * If the region maps to a file, kernel should:
-         * 1. copy the file content to the memory region
-         */
-        if (flags & MAP_POPULATE) {
-            memcpy((void *) p_addr, (void *) f_addr, PAGE_SIZE);
         }
 
         tmp_addr += PAGE_SIZE;

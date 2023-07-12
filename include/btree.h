@@ -13,9 +13,13 @@ struct _b_key {
     struct list_head key_h;   /* list of key */
     struct list_head b_key_h; /* list of all keys */
     uint64_t start, end;
-    void *entry;
+    void *entry; /* point page's virtual address. if page wasn't allocated, it's
+                    NULL */
     b_node *container;        /* node contain the key */
     b_node *c_left, *c_right; /* point to child */
+    uint64_t f_addr;          /* file content copied to memory region */
+    size_t f_size;            /* file content size */
+    uint32_t prot;            /* page protection bit */
 };
 
 struct _b_node {
@@ -46,6 +50,9 @@ uint32_t bt_insert_range(b_node **root,
                          uint64_t start,
                          uint64_t end,
                          uint64_t size,
-                         void *entry);
+                         void *entry,
+                         uint64_t f_addr,
+                         size_t f_size,
+                         uint32_t prot);
 
 #endif

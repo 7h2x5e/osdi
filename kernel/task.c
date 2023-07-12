@@ -139,11 +139,10 @@ int do_exec(uint64_t bin_start)
     uint64_t p_offset_aligned = ROUNDDOWN(p_offset, PAGE_SIZE);
 
     /* allocate memory for .txt & .bss section */
-    /* TODO: MAP_POPULATE can be removed if demand paging implements */
     if (MAP_FAILED ==
         do_mmap(p_vaddr_aligned,
                 MAX(p_memsz, p_filesz) + (p_offset - p_offset_aligned), p_flags,
-                MAP_FIXED | MAP_POPULATE, bin_start, p_offset_aligned))
+                MAP_FIXED, bin_start, p_offset_aligned))
         return -1;
 
     /* allocate stack */
@@ -154,7 +153,9 @@ int do_exec(uint64_t bin_start)
     }
 
     /* update ttbr0_el1 */
-    const task_t *task = get_current();
+    task_t *task = (task_t *) get_current();
+    create_pgd(&task->mm); /* demand paging. only allocate PGD in the beggining,
+                              the others are delayed */
     update_pgd(task->mm.pgd);
 
     /* zerofill .bss section */

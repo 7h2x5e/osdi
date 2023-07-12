@@ -10,7 +10,6 @@
 
 #define MAP_FIXED 0x0010
 #define MAP_ANONYMOUS 0x0020
-#define MAP_POPULATE 0x8000
 
 #define MAP_FAILED ((uint64_t) -1)
 

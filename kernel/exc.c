@@ -4,6 +4,9 @@
 #include <include/syscall.h>
 #include <include/types.h>
 #include <include/task.h>
+#include <include/btree.h>
+#include <include/mman.h>
+#include <include/string.h>
 
 const static char *entry_error_messages[] = {
     "SYNC_INVALID_EL1t",   "IRQ_INVALID_EL1t",
@@ -31,28 +34,76 @@ void show_invalid_entry_message(struct TrapFrame *tf)
                     ESR & ((1 << ESR_ELx_IL_SHIFT) - 1));
 }
 
-static inline void page_fault_handler()
+static inline void page_fault_handler(uint32_t status_code, uint64_t fault_addr)
 {
-    uint64_t far_el1;
-    asm volatile("mrs %0, far_el1" : "=r"(far_el1) :);
-    KERNEL_LOG_ERROR("Page fault address 0x%x, kill process", far_el1);
+    if ((status_code == 0b000100)    /* Translation fault, level 0. */
+        || (status_code == 0b000101) /* Translation fault, level 1. */
+        || (status_code == 0b000110) /* Translation fault, level 2. */
+        || (status_code == 0b000111) /* Translation fault, level 3. */
+    ) {
+        /* align page address */
+        uint64_t v_addr = ROUNDDOWN(fault_addr, PAGE_SIZE), p_addr;
+
+        task_t *cur = (task_t *) get_current();
+        btree *bt = &cur->mm.mm_bt;
+        b_key *key = bt_find_key(bt->root, v_addr);
+
+        if (!key || key->start != v_addr) {
+            KERNEL_LOG_DEBUG("Could not find region in btree");
+            goto page_fault_end;
+        }
+
+        /*
+         * Demand paging, kernel should:
+         * 1. allocate page frames
+         * 2. map memory region to page frames and set page attributes
+         * according to region's protection policy
+         */
+        if (!(p_addr = map_addr_user(v_addr, key->prot))) {
+            KERNEL_LOG_DEBUG("Cannot allocate page for user space, addr=%x",
+                             v_addr);
+            do_munmap(v_addr, PAGE_SIZE);
+            goto page_fault_end;
+        }
+
+        /* append page virtual address to key */
+        key->entry = (void *) p_addr;
+
+        /* If the region maps to a file, kernel should: copy the
+         * file content to the memory region */
+        if (key->f_size > 0) {
+            memcpy((void *) p_addr, (void *) key->f_addr, PAGE_SIZE);
+        }
+
+        KERNEL_LOG_DEBUG("Successfully load page");
+        return;
+    }
+
+page_fault_end:
+    KERNEL_LOG_ERROR("Kill process...");
     do_exit();
 }
 
 static inline void inst_abort_handler(struct TrapFrame *tf)
 {
+    uint64_t far_el1;
     uint32_t ISS = (tf->esr_el1) & ((1 << ESR_ELx_IL_SHIFT) - 1),
              IFSC = ISS & 0b111111;
-    KERNEL_LOG_ERROR("Instruction Abort! IFSC 0x%x", IFSC);
-    page_fault_handler();
+    asm volatile("mrs %0, far_el1" : "=r"(far_el1) :);
+    KERNEL_LOG_ERROR("Instruction Abort! IFSC 0x%x, page fault address 0x%x",
+                     IFSC, far_el1);
+    page_fault_handler(IFSC, far_el1);
 }
 
 static inline void data_abort_handler(struct TrapFrame *tf)
 {
+    uint64_t far_el1;
     uint32_t ISS = (tf->esr_el1) & ((1 << ESR_ELx_IL_SHIFT) - 1),
              DFSC = ISS & 0b111111;
-    KERNEL_LOG_ERROR("Data Abort! DFSC 0x%x", DFSC);
-    page_fault_handler();
+    asm volatile("mrs %0, far_el1" : "=r"(far_el1) :);
+    KERNEL_LOG_ERROR("Data Abort! DFSC 0x%x, page fault address 0x%x", DFSC,
+                     far_el1);
+    page_fault_handler(DFSC, far_el1);
 }
 
 void sync_handler(struct TrapFrame *tf)

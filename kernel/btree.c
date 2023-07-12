@@ -25,7 +25,12 @@ bool is_maximum(b_key *key)
     return false;
 }
 
-static b_key *allocate_key(uint64_t start, uint64_t end, void *entry)
+static b_key *allocate_key(uint64_t start,
+                           uint64_t end,
+                           void *entry,
+                           uint64_t f_addr,
+                           size_t f_size,
+                           uint32_t prot)
 {
     b_key *key = malloc(sizeof(b_key));
     key->c_left = key->c_right = NULL;
@@ -33,6 +38,9 @@ static b_key *allocate_key(uint64_t start, uint64_t end, void *entry)
     key->end = end;
     key->entry = entry;
     key->container = NULL;
+    key->f_addr = f_addr;
+    key->f_size = f_size;
+    key->prot = prot;
     INIT_LIST_HEAD(&key->key_h);
     INIT_LIST_HEAD(&key->b_key_h);
     return key;
@@ -393,9 +401,9 @@ static void init_btree(btree *bt, uint64_t min, uint64_t max)
     root->max = max;
 
     /* insert dummy nodes for available range [min, max) */
-    b_key *min_key = allocate_key(
-              min, min, (void *) 0), /* entry = 0/1 stands for min/max */
-        *max_key = allocate_key(max, max, (void *) 1);
+    b_key *min_key = allocate_key(min, min, (void *) 0, 0, 0,
+                                  0), /* entry = 0/1 stands for min/max */
+        *max_key = allocate_key(max, max, (void *) 1, 0, 0, 0);
     min_key->container = root;
     max_key->container = root;
     list_add_tail(&min_key->key_h, &root->key_h);
@@ -568,7 +576,10 @@ uint32_t bt_insert_range(b_node **root,
                          uint64_t start,
                          uint64_t end,
                          uint64_t size,
-                         void *entry)
+                         void *entry,
+                         uint64_t f_addr,
+                         size_t f_size,
+                         uint32_t prot)
 {
     uint64_t addr;
     b_key *key;
@@ -586,7 +597,8 @@ uint32_t bt_insert_range(b_node **root,
 
     /* insert into node */
     b_node *leaf = key->container;
-    b_key *new_key = allocate_key(addr, addr + size, entry);
+    b_key *new_key =
+        allocate_key(addr, addr + size, entry, f_addr, f_size, prot);
     new_key->container = leaf;
     if (addr >= key->end) {
         /* key | new_key */

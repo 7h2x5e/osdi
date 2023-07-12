@@ -255,7 +255,7 @@ void mm_struct_destroy(mm_struct *mm)
 /* create pgd for user space of a specific process
  * return virtual address of the pgd if success, otherwise return NULL.
  */
-static void *create_pgd(mm_struct *mm)
+void *create_pgd(mm_struct *mm)
 {
     if (!mm->pgd) {
         // has't created pgd
@@ -483,7 +483,8 @@ int fork_btree(mm_struct *mm_dst, const mm_struct *mm_src)
         KERNEL_LOG_DEBUG("Fork region [%x, %x)", tmp->start, tmp->end);
 
         if ((err = bt_insert_range(&dst->root, tmp->start, tmp->end, PAGE_SIZE,
-                                   NULL))) {
+                                   tmp->entry, tmp->f_addr, tmp->f_size,
+                                   tmp->prot))) {
             KERNEL_LOG_ERROR("Cannot fork region [%x, %x), err=%d", tmp->start,
                              tmp->end, err);
             return -1;

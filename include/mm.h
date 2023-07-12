@@ -41,6 +41,7 @@ typedef struct {
 
 extern page_t page[PAGE_NUM];
 
+void *create_pgd(mm_struct *);
 void *page_alloc_kernel(mm_struct *);
 void *page_alloc_user(mm_struct *);
 void mm_struct_init(mm_struct *);
