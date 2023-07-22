@@ -27,26 +27,34 @@ enum page_flag { PAGE_USED = 1 << 0 };
 typedef struct {
     uintptr_t pgd;                     /* page global directory */
     struct list_head kernel_page_list; /* list of allocated kernel pages */
-    struct list_head user_page_list;   /* list of allocated user pages */
     uint32_t kernel_page_num;          /* number of kernel pages */
-    uint32_t user_page_num;            /* number of user pages */
     btree mm_bt;                       /* use B-Tree to manage user pages */
 } mm_struct;
+
 typedef struct {
     uint32_t flag;
     int pfn;
     void *physical;
-    struct list_head head;
+    struct list_head head; /* for user page, record processes using the page;
+                              for kernel page, attach to page list of
+                              `mm_struct` and set `refcnt` to 1 */
+    uint32_t refcnt;
 } page_t;
 
 extern page_t page[PAGE_NUM];
+extern struct list_head free_page_list;
+extern size_t free_page_num, used_page_num;
 
+bool is_set(uint32_t, uint32_t);
+void set(uint32_t *, uint32_t);
+void unset(uint32_t *, uint32_t);
 void *create_pgd(mm_struct *);
 void *page_alloc_kernel(mm_struct *);
-void *page_alloc_user(mm_struct *);
+void *page_alloc_user(mm_struct *, uint64_t);
 void mm_struct_init(mm_struct *);
 void mm_struct_destroy(mm_struct *);
 uint64_t map_addr_user(uint64_t, int prot);
+int fork_page(void *dst, const void *src);
 int fork_page_table(mm_struct *, const mm_struct *);
 void *btree_page_malloc(size_t size);
 void btree_page_free(void *ptr);

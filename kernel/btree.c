@@ -8,10 +8,12 @@
 #define malloc(x) btree_page_malloc(x)
 #define free(x) btree_page_free(x)
 #define KEY_MAX 4 /* must >= 2 */
+#define KEY_MINIMUM ((size_t) 0)
+#define KEY_MAXIMUM ((size_t) 1)
 
 bool is_minimum(b_key *key)
 {
-    if (key && key->start == key->end && (key->entry == 0)) {
+    if (key && key->start == key->end && (key->pf.f_size == KEY_MINIMUM)) {
         return true;
     }
     return false;
@@ -19,28 +21,27 @@ bool is_minimum(b_key *key)
 
 bool is_maximum(b_key *key)
 {
-    if (key && key->start == key->end && ((uint64_t) key->entry == 1)) {
+    if (key && key->start == key->end && (key->pf.f_size == KEY_MAXIMUM)) {
         return true;
     }
     return false;
 }
 
-static b_key *allocate_key(uint64_t start,
-                           uint64_t end,
-                           void *entry,
-                           uint64_t f_addr,
-                           size_t f_size,
-                           uint32_t prot)
+static b_key *allocate_key(uint64_t start, uint64_t end, page_info *pg_info)
 {
     b_key *key = malloc(sizeof(b_key));
     key->c_left = key->c_right = NULL;
     key->start = start;
     key->end = end;
-    key->entry = entry;
     key->container = NULL;
-    key->f_addr = f_addr;
-    key->f_size = f_size;
-    key->prot = prot;
+    key->pf = *pg_info;
+    if (key->pf.p_page != NULL && !(is_minimum(key) || is_maximum(key))) {
+        page_t *p = (page_t *) key->pf.p_page;
+        p->refcnt++;
+        list_add(&key->pf.head, &p->head);
+    } else {
+        INIT_LIST_HEAD(&key->pf.head);
+    }
     INIT_LIST_HEAD(&key->key_h);
     INIT_LIST_HEAD(&key->b_key_h);
     return key;
@@ -59,9 +60,27 @@ static b_node *allocate_node(enum node_type type)
 
 static void free_key(b_key *key)
 {
-    /* do not free entry */
-    // if (key->entry && !is_minimum(key) && !is_maximum(key))
-    //     free(key->entry);
+    page_info *p_pf = &key->pf;
+    page_t *p = (page_t *) p_pf->p_page;
+
+    /* free user page */
+    if (p) {
+        p_pf->p_page = NULL;
+        list_del(&p_pf->head);
+
+        /* decrease reference count of original page */
+        if (--p->refcnt == 0) {
+            assert(list_empty(&p->head));
+            list_add(&p->head, &free_page_list);
+            unset(&p->flag, PAGE_USED);
+            free_page_num++;
+            used_page_num--;
+
+            KERNEL_LOG_TRACE("return user page to free list, used page=%d",
+                             used_page_num);
+        }
+    }
+
     list_del(&key->b_key_h);
     list_del(&key->key_h);
     key->container->count--;
@@ -401,9 +420,11 @@ static void init_btree(btree *bt, uint64_t min, uint64_t max)
     root->max = max;
 
     /* insert dummy nodes for available range [min, max) */
-    b_key *min_key = allocate_key(min, min, (void *) 0, 0, 0,
-                                  0), /* entry = 0/1 stands for min/max */
-        *max_key = allocate_key(max, max, (void *) 1, 0, 0, 0);
+    page_info dummy = {0};
+    dummy.f_size = KEY_MINIMUM;
+    b_key *min_key = allocate_key(min, min, &dummy);
+    dummy.f_size = KEY_MAXIMUM;
+    b_key *max_key = allocate_key(max, max, &dummy);
     min_key->container = root;
     max_key->container = root;
     list_add_tail(&min_key->key_h, &root->key_h);
@@ -576,10 +597,7 @@ uint32_t bt_insert_range(b_node **root,
                          uint64_t start,
                          uint64_t end,
                          uint64_t size,
-                         void *entry,
-                         uint64_t f_addr,
-                         size_t f_size,
-                         uint32_t prot)
+                         page_info *pg_info)
 {
     uint64_t addr;
     b_key *key;
@@ -597,8 +615,7 @@ uint32_t bt_insert_range(b_node **root,
 
     /* insert into node */
     b_node *leaf = key->container;
-    b_key *new_key =
-        allocate_key(addr, addr + size, entry, f_addr, f_size, prot);
+    b_key *new_key = allocate_key(addr, addr + size, pg_info);
     new_key->container = leaf;
     if (addr >= key->end) {
         /* key | new_key */

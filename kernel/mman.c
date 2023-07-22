@@ -86,10 +86,10 @@ uint64_t do_mmap(uint64_t addr,
 
     /* get regions' start address */
     if (!(bt->max > v_addr && bt->max - v_addr >= len)) {
-        KERNEL_LOG_DEBUG("no available memory area");
+        KERNEL_LOG_INFO("no available memory area");
         return MAP_FAILED;
     } else if (!bt_find_empty_area(bt->root, v_addr, bt->max, len, &v_addr)) {
-        KERNEL_LOG_DEBUG("no available memory area");
+        KERNEL_LOG_INFO("no available memory area");
         return MAP_FAILED;
     }
 
@@ -102,24 +102,27 @@ uint64_t do_mmap(uint64_t addr,
         return MAP_FAILED;
     }
 
-    KERNEL_LOG_DEBUG("addr = %x, v_addr = %x", addr, v_addr);
+    KERNEL_LOG_DEBUG("mmap: addr = 0x%x (0x%x), len = %d", v_addr, addr, len);
 
     /* allocate page with protections */
     size_t old_len = len;
     uint64_t tmp_addr = v_addr, f_addr = file_start + file_offset;
     while (len > 0) {
-        /* demand paging. store page info and load it when page fault happens */
-        if (file_start > 0) {
-            /* load 1 page from f_addr in page fault handler */
-            err = bt_insert_range(&bt->root, tmp_addr, tmp_addr + PAGE_SIZE,
-                                  PAGE_SIZE, NULL, f_addr, PAGE_SIZE, prot);
-        } else {
-            err = bt_insert_range(&bt->root, tmp_addr, tmp_addr + PAGE_SIZE,
-                                  PAGE_SIZE, NULL, 0, 0, prot);
+        /* demand paging. store page info and load it when page fault happens.
+         * load 1 page from f_addr in page fault handler */
+        page_info pg_info = {.f_addr = f_addr,
+                             .f_size = PAGE_SIZE,
+                             .prot = prot,
+                             .p_page = NULL};
+        if (file_start == 0) {
+            pg_info.f_addr = pg_info.f_size = 0;
         }
 
+        err = bt_insert_range(&bt->root, tmp_addr, tmp_addr + PAGE_SIZE,
+                              PAGE_SIZE, &pg_info);
+
         if (err) {
-            KERNEL_LOG_DEBUG(
+            KERNEL_LOG_INFO(
                 "Cannot insert region in btree, addr = %x, err = %d", tmp_addr,
                 err);
             goto _do_mmap_err;
@@ -163,6 +166,7 @@ int32_t do_munmap(uint64_t addr, uint64_t length)
 
         KERNEL_LOG_DEBUG("Unmap page, virtual addr [%x, %x)", tmp_addr,
                          tmp_addr + PAGE_SIZE);
+        //@todo unbind key and page
         //@todo remove indicated range from btree
         //@todo invalidate page entry
     }

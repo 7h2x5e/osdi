@@ -14,7 +14,7 @@
 
 page_t page[PAGE_NUM];
 struct list_head free_page_list;
-static size_t free_page_num, used_page_num;
+size_t free_page_num, used_page_num;
 
 typedef struct _btree_page {
     struct list_head head;
@@ -149,7 +149,7 @@ static page_t *get_free_page()
 
     // sanity check
     if (is_set(free_page->flag, PAGE_USED)) {
-        KERNEL_LOG_ERROR("page is in use!");
+        KERNEL_LOG_INFO("page is in use!");
         return NULL;
     }
 
@@ -157,7 +157,8 @@ static page_t *get_free_page()
     uintptr_t virt_addr = (physaddr_t) free_page->physical | KERNEL_VIRT_BASE;
     memset((void *) virt_addr, 0, PAGE_SIZE);
     set(&free_page->flag, PAGE_USED);
-    list_del(&free_page->head);
+    list_del_init(&free_page->head);
+    free_page->refcnt = 0;
     free_page_num--;
     used_page_num++;
 
@@ -178,14 +179,15 @@ void *page_alloc_kernel(mm_struct *mm)
     // store a allocated page in kernel page list of mm_struct
     list_add_tail(&page_ptr->head, &mm->kernel_page_list);
     mm->kernel_page_num++;
-    // KERNEL_LOG_DEBUG("allocate page for kernel space, page virt addr: %x",
-    // virt_addr);
+    page_ptr->refcnt = 1;
+
+    KERNEL_LOG_TRACE("allocate page (%x) for kernel space", virt_addr);
 
     return (void *) virt_addr;
 }
 
 // get a page for user space
-void *page_alloc_user(mm_struct *mm)
+void *page_alloc_user(mm_struct *mm, uint64_t uaddr)
 {
     page_t *page_ptr = get_free_page();
     if (!page_ptr)
@@ -193,30 +195,27 @@ void *page_alloc_user(mm_struct *mm)
 
     physaddr_t phy_addr = (physaddr_t) page_ptr->physical;
     uintptr_t virt_addr = phy_addr | KERNEL_VIRT_BASE;
+    btree *bt = &mm->mm_bt;
+    b_key *key = bt_find_key(bt->root, uaddr);
 
-    // store a allocated page in user page list of mm_struct
-    list_add_tail(&page_ptr->head, &mm->user_page_list);
-    mm->user_page_num++;
-    // KERNEL_LOG_DEBUG("allocate page for user space, page virt addr: %x",
-    // virt_addr);
+    assert(key != NULL);
+    assert(key->pf.p_page == NULL);
+
+    /* bind `page_info` and page */
+    key->pf.p_page = (void *) page_ptr;
+    list_add(&key->pf.head, &page_ptr->head);
+
+    page_ptr->refcnt = 1;
+
+    KERNEL_LOG_TRACE("allocate page (%x) for user space", virt_addr);
 
     return (void *) virt_addr;
 }
 
 static inline void reclaim_page(mm_struct *mm)
 {
+    // only reclaim kernel page
     page_t *free_page, *tmp;
-    list_for_each_entry_safe(free_page, tmp, &mm->user_page_list, head)
-    {
-        list_del(&free_page->head);
-        list_add(&free_page->head, &free_page_list);
-        unset(&free_page->flag, PAGE_USED);
-        free_page_num++;
-        used_page_num--;
-        mm->user_page_num--;
-        // KERNEL_LOG_DEBUG("free user page, virt addr: %x",
-        //                  free_page->physical + KERNEL_VIRT_BASE);
-    }
     list_for_each_entry_safe(free_page, tmp, &mm->kernel_page_list, head)
     {
         list_del(&free_page->head);
@@ -225,31 +224,29 @@ static inline void reclaim_page(mm_struct *mm)
         free_page_num++;
         used_page_num--;
         mm->kernel_page_num--;
-        // KERNEL_LOG_DEBUG("free kernel page, virt addr: %x",
-        //                  free_page->physical + KERNEL_VIRT_BASE);
+        KERNEL_LOG_TRACE("return kernel page (0x%x) to free list, used page=%d",
+                         free_page->physical + KERNEL_VIRT_BASE, used_page_num);
     }
+
+    assert(list_empty(&mm->kernel_page_list));
 }
 
 void mm_struct_init(mm_struct *mm)
 {
     mm->pgd = (uintptr_t) NULL;
-    mm->kernel_page_num = mm->user_page_num = 0;
+    mm->kernel_page_num = 0;
     INIT_LIST_HEAD(&mm->kernel_page_list);
-    INIT_LIST_HEAD(&mm->user_page_list);
     bt_init(&mm->mm_bt);
     assert(!list_empty(&mm->mm_bt.b_key_h));
 }
 
 void mm_struct_destroy(mm_struct *mm)
 {
-    bt_destroy(&mm->mm_bt);
-    assert(list_empty(&mm->mm_bt.b_key_h));
-    reclaim_page(mm);
-    assert(list_empty(&mm->user_page_list));
-    assert(list_empty(&mm->kernel_page_list));
-    assert(mm->kernel_page_num == 0);
-    assert(mm->user_page_num == 0);
+    bt_destroy(&mm->mm_bt);  // reclaim user page
+    reclaim_page(mm);        // reclaim kernel page
     mm->pgd = (uintptr_t) NULL;
+    assert(list_empty(&mm->mm_bt.b_key_h));
+    assert(mm->kernel_page_num == 0);
 }
 
 /* create pgd for user space of a specific process
@@ -285,15 +282,20 @@ static void *create_pmd_pgd_pte(uint64_t *page_table,
     return (void *) ((page_table[index] & ~0xfffULL) | KERNEL_VIRT_BASE);
 }
 
-/* create page for user process
+/* create page for user process and store page information in btree
  * return virtual address of the page if success, otherwise return NULL.
  */
-static void *create_page(uint64_t *pte, uint32_t index, int prot, mm_struct *mm)
+static void *create_page(uint64_t *pte,
+                         uint32_t index,
+                         int prot,
+                         mm_struct *mm,
+                         uint64_t uaddr)
 {
     if (!pte)
         return NULL;
     if (!pte[index]) {
-        void *page_virt_addr = page_alloc_user(mm);
+        void *page_virt_addr = page_alloc_user(
+            mm, uaddr); /* get a new page and store it's infomation in btree */
         if (!page_virt_addr)
             return NULL;
         uint64_t perm = 0;
@@ -316,8 +318,8 @@ static void *create_page(uint64_t *pte, uint32_t index, int prot, mm_struct *mm)
     return (void *) ((pte[index] & ~0xfffULL) | KERNEL_VIRT_BASE);
 }
 
-/* Allocate new page for user process and return pages's virtual address
- * Return page address of `uaddr` if success, otherwise return 0
+/* Allocate new page for user space, store page information in mm_struct and
+ * return pages's virtual address. If failed, return 0
  */
 uint64_t map_addr_user(uint64_t uaddr, int prot)
 {
@@ -345,7 +347,7 @@ uint64_t map_addr_user(uint64_t uaddr, int prot)
     pte = create_pmd_pgd_pte(pmd, pmd_idx, &cur_task->mm);
     if (!pte)
         goto err;
-    page = create_page(pte, pte_idx, prot, &cur_task->mm);
+    page = create_page(pte, pte_idx, prot, &cur_task->mm, uaddr);
     if (!page)
         goto err;
     return (uint64_t) page;
@@ -367,19 +369,15 @@ int fork_pte(uint64_t *dst_pt, const uint64_t *src_pt, mm_struct *dst_mm)
         return -1;
     for (uint16_t idx = 0; idx < (1 << 9); idx++) {
         if (src_pt[idx]) {
-            const void *next_src_pt =
-                (const void *) ((src_pt[idx] & ~0xfffULL) | KERNEL_VIRT_BASE);
-            void *next_dst_pt = create_page(
-                dst_pt, idx, 0, dst_mm); /* set permission bits later */
-            if (!next_dst_pt)
-                return -1;
-            dst_pt[idx] &=
-                ~((3ULL << 53) | (3ULL << 6)); /* clear permission bits */
-            dst_pt[idx] |=
-                (src_pt[idx] & ((1ULL << 54) | (1ULL << 53) | (1 << 7) |
-                                (1 << 6))); /* copy permisssion bits */
-            if (-1 == fork_page(next_dst_pt, next_src_pt))
-                return -1;
+            /*
+             * copy on write.
+             * mark PTE entries of both child and parent to be read-only
+             */
+            ((uint64_t *) src_pt)[idx] &= ~(3ULL << 6);
+            ((uint64_t *) src_pt)[idx] |= PD_ACCESS_PERM_3;
+            dst_pt[idx] = src_pt[idx];
+
+            KERNEL_LOG_DEBUG("fork pte entry for user space");
         }
     }
     return 0;
@@ -482,11 +480,15 @@ int fork_btree(mm_struct *mm_dst, const mm_struct *mm_src)
 
         KERNEL_LOG_DEBUG("Fork region [%x, %x)", tmp->start, tmp->end);
 
+        page_info pg_info = {.f_addr = tmp->pf.f_addr,
+                             .f_size = tmp->pf.f_size,
+                             .prot = tmp->pf.prot,
+                             .p_page = tmp->pf.p_page};
+
         if ((err = bt_insert_range(&dst->root, tmp->start, tmp->end, PAGE_SIZE,
-                                   tmp->entry, tmp->f_addr, tmp->f_size,
-                                   tmp->prot))) {
-            KERNEL_LOG_ERROR("Cannot fork region [%x, %x), err=%d", tmp->start,
-                             tmp->end, err);
+                                   &pg_info))) {
+            KERNEL_LOG_INFO("Cannot fork region [%x, %x), err=%d", tmp->start,
+                            tmp->end, err);
             return -1;
         }
     }
