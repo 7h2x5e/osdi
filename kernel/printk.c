@@ -32,7 +32,7 @@ void printk(const char *fmt, ...)
     __builtin_va_list args;
     __builtin_va_start(args, fmt);
 
-    char dst[512] = {0};
+    char dst[1 << 12] = {0};
     vsprintf(dst, fmt, args);
     __builtin_va_end(args);
 
@@ -49,7 +49,7 @@ void printk_time(const char *fmt, ...)
     __builtin_va_list args;
     __builtin_va_start(args, fmt);
 
-    char dst[512] = {0};
+    char dst[1 << 12] = {0};
     vsprintf(dst, fmt, args);
     __builtin_va_end(args);
 

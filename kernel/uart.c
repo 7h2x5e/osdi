@@ -25,7 +25,7 @@
 #define MIS_TXMIS (1 << 5)
 
 /* PL011 UART ring buffer */
-#define PL011_RINGBUFF_SIZE (1 << 10)
+#define PL011_RINGBUFF_SIZE (1 << 12)
 typedef struct ringbuf_t {
     uint8_t buf[PL011_RINGBUFF_SIZE];
     size_t head, tail;

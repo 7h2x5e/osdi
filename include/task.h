@@ -16,8 +16,8 @@
 #define RUNQUEUE_SIZE MAX_TASK  // must be power of 2
 
 /* task pool */
-#define KSTACK_SIZE (1 << 12)
-#define USTACK_SIZE (1 << 12)
+#define KSTACK_SIZE (1 << 13)
+#define USTACK_SIZE (1 << 13)
 
 typedef enum {
     TASK_UNUSED,
