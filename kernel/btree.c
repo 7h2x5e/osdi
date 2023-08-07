@@ -5,15 +5,16 @@
 #include <include/assert.h>
 #include <include/kernel_log.h>
 
-#define malloc(x) btree_page_malloc(x)
-#define free(x) btree_page_free(x)
+#define malloc(x) btree_node_malloc(x)
+#define free(x) btree_node_free(x)
 #define KEY_MAX 4 /* must >= 2 */
-#define KEY_MINIMUM ((size_t) 0)
-#define KEY_MAXIMUM ((size_t) 1)
+#define MIN_KEY ((void *) 0x00100100)
+#define MAX_KEY ((void *) 0x00200200)
 
 bool is_minimum(b_key *key)
 {
-    if (key && key->start == key->end && (key->pf.f_size == KEY_MINIMUM)) {
+    if (key && key->start == key->end && !key->c_left &&
+        key->entry == MIN_KEY) {
         return true;
     }
     return false;
@@ -21,27 +22,21 @@ bool is_minimum(b_key *key)
 
 bool is_maximum(b_key *key)
 {
-    if (key && key->start == key->end && (key->pf.f_size == KEY_MAXIMUM)) {
+    if (key && key->start == key->end && !key->c_right &&
+        key->entry == MAX_KEY) {
         return true;
     }
     return false;
 }
 
-static b_key *allocate_key(uint64_t start, uint64_t end, page_info *pg_info)
+static b_key *allocate_key(uint64_t start, uint64_t end)
 {
-    b_key *key = malloc(sizeof(b_key));
+    b_key *key = (b_key *) malloc(sizeof(b_key));
     key->c_left = key->c_right = NULL;
     key->start = start;
     key->end = end;
     key->container = NULL;
-    key->pf = *pg_info;
-    if (key->pf.p_page != NULL && !(is_minimum(key) || is_maximum(key))) {
-        page_t *p = (page_t *) key->pf.p_page;
-        p->refcnt++;
-        list_add(&key->pf.head, &p->head);
-    } else {
-        INIT_LIST_HEAD(&key->pf.head);
-    }
+    key->entry = NULL;
     INIT_LIST_HEAD(&key->key_h);
     INIT_LIST_HEAD(&key->b_key_h);
     return key;
@@ -49,7 +44,7 @@ static b_key *allocate_key(uint64_t start, uint64_t end, page_info *pg_info)
 
 static b_node *allocate_node(enum node_type type)
 {
-    b_node *node = malloc(sizeof(b_node));
+    b_node *node = (b_node *) malloc(sizeof(b_node));
     node->count = 0;
     INIT_LIST_HEAD(&node->key_h);
     node->p_left = node->p_right = NULL;
@@ -60,30 +55,12 @@ static b_node *allocate_node(enum node_type type)
 
 static void free_key(b_key *key)
 {
-    page_info *p_pf = &key->pf;
-    page_t *p = (page_t *) p_pf->p_page;
-
-    /* free user page */
-    if (p) {
-        p_pf->p_page = NULL;
-        list_del(&p_pf->head);
-
-        /* decrease reference count of original page */
-        if (--p->refcnt == 0) {
-            assert(list_empty(&p->head));
-            list_add(&p->head, &free_page_list);
-            unset(&p->flag, PAGE_USED);
-            free_page_num++;
-            used_page_num--;
-
-            KERNEL_LOG_TRACE("return user page to free list, used page=%d",
-                             used_page_num);
-        }
-    }
-
     list_del(&key->b_key_h);
     list_del(&key->key_h);
     key->container->count--;
+    if (key->entry && key->entry != MIN_KEY && key->entry != MAX_KEY) {
+        vma_free(key->entry);
+    }
     free(key);
 }
 
@@ -419,14 +396,11 @@ static void init_btree(btree *bt, uint64_t min, uint64_t max)
     root->min = min;
     root->max = max;
 
-    /* insert dummy nodes for available range [min, max) */
-    page_info dummy = {0};
-    dummy.f_size = KEY_MINIMUM;
-    b_key *min_key = allocate_key(min, min, &dummy);
-    dummy.f_size = KEY_MAXIMUM;
-    b_key *max_key = allocate_key(max, max, &dummy);
+    b_key *min_key = allocate_key(min, min), *max_key = allocate_key(max, max);
     min_key->container = root;
     max_key->container = root;
+    min_key->entry = MIN_KEY;
+    max_key->entry = MAX_KEY;
     list_add_tail(&min_key->key_h, &root->key_h);
     list_add_tail(&max_key->key_h, &root->key_h);
     root->count = 2;
@@ -544,13 +518,12 @@ b_key *bt_find_empty_area(b_node *node,
     return NULL;
 }
 
-/* search from the start up until an key is found. return NULL if not found */
-b_key *bt_find_key(b_node *node, uint64_t start)
+b_key *bt_find_key(b_node *node, uint64_t val)
 {
     if (!node || !node->count)
         return NULL;
 
-    if (!(node->min <= start && node->max > start)) {
+    if (!(node->min <= val && node->max > val)) {
         return NULL;
     }
 
@@ -560,7 +533,8 @@ b_key *bt_find_key(b_node *node, uint64_t start)
         /* iterate all keys of the node */
         list_for_each_entry(cur, &node->key_h, key_h)
         {
-            if (!is_maximum(cur) && !is_minimum(cur) && cur->start >= start)
+            if (!is_maximum(cur) && !is_minimum(cur) &&
+                (cur->start <= val && val < cur->end))
                 return cur;
         }
         return NULL;
@@ -570,23 +544,23 @@ b_key *bt_find_key(b_node *node, uint64_t start)
         b_key *key, *pos;
         b_node *n;
 
-        /* find the key that meets the equation key->start >= start */
+        /* find the key that meets the equation key->start >= val */
         list_for_each_entry(pos, &node->key_h, key_h)
         {
             key = pos;
-            if (key->start >= start)
+            if (key->start >= val)
                 break;
         }
 
-        if (key->start == start) {
-            return key; /* found */
-        } else if (key->start > start) {
-            n = key->c_left; /* maybe in left tree */
+        if (val < key->start) {
+            n = key->c_left; /* in left tree */
+        } else if (key->start <= val && val < key->end) {
+            return key;
         } else {
-            n = key->c_right; /* maybe in right tree */
+            n = key->c_right; /* in right tree */
         }
 
-        return bt_find_key(n, start);
+        return bt_find_key(n, val);
     }
 
     return NULL;
@@ -596,13 +570,12 @@ b_key *bt_find_key(b_node *node, uint64_t start)
 uint32_t bt_insert_range(b_node **root,
                          uint64_t start,
                          uint64_t end,
-                         uint64_t size,
-                         page_info *pg_info)
+                         void *entry)
 {
-    uint64_t addr;
+    uint64_t addr, size = end - start;
     b_key *key;
 
-    if (!(end > start && (end - start) >= size))
+    if (end <= start)
         return E_INVAL;
     if (!*root || !(*root)->count)
         return E_FAULT;
@@ -615,7 +588,8 @@ uint32_t bt_insert_range(b_node **root,
 
     /* insert into node */
     b_node *leaf = key->container;
-    b_key *new_key = allocate_key(addr, addr + size, pg_info);
+    b_key *new_key = allocate_key(addr, addr + size);
+    new_key->entry = entry;
     new_key->container = leaf;
     if (addr >= key->end) {
         /* key | new_key */
@@ -639,13 +613,17 @@ uint32_t bt_insert_range(b_node **root,
 
 void bt_init(btree *bt)
 {
-    bt->min = 0;
-    bt->max = 1ULL << 48;
-    init_btree(bt, bt->min, bt->max);
+    if (!bt->root) {
+        bt->min = 0;
+        bt->max = 1ULL << 48;
+        init_btree(bt, bt->min, bt->max);
+    }
 }
 
 void bt_destroy(btree *bt)
 {
-    destroy_btree(bt->root);
-    bt->root = NULL;  // failsafe
+    if (bt->root) {
+        destroy_btree(bt->root);
+        bt->root = NULL;
+    }
 }

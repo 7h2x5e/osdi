@@ -72,8 +72,6 @@ boot_rest:
 	sub     x1, x1, x0
 	bl      memzero
 
-    bl      page_init
-    bl      btree_page_init
     bl      main
     
     // for failsafe

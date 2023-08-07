@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 RETURN=0
 CLANG_FORMAT=$(which clang-format)
 if [ $? -ne 0 ]; then
@@ -31,7 +30,7 @@ for FILE in $FILES; do
         echo "[!] $FILE does not follow the consistent coding style." >&2
         RETURN=1
     fi
-    if [ $RETURN -eq 1 ]; then
+    if [ $r != 0 ]; then
         echo "" >&2
         echo "Make sure you indent as the following:" >&2
         echo "    clang-format -i $FILE" >&2

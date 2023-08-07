@@ -21,7 +21,10 @@
 #define PD_ACCESS_PERM_1 (0b01 << 6)  // EL0: RW, EL1: RW
 #define PD_ACCESS_PERM_2 (0b10 << 6)  // EL0: NA, EL1: RO
 #define PD_ACCESS_PERM_3 (0b11 << 6)  // EL0: RO, EL1: RO
+#define PD_ACCESS_EXEC (1ULL << 54)
 #define PD_MASK 0x1ffULL
+#define PTE_ADDR_MASK \
+    ((pteval_t) ((1ull << (48 - PAGE_SHIFT)) - 1) << PAGE_SHIFT)
 
 #define PGD0_ATTR PD_TABLE
 #define PUD0_ATTR PD_TABLE
@@ -35,4 +38,7 @@
 #define PMD_SHIFT 21
 #define PTE_SHIFT 12
 
+#define PGD_TYPE_TABLE PD_TABLE
+#define PUD_TYPE_TABLE PD_TABLE
+#define PMD_TYPE_TABLE PD_TABLE
 #endif

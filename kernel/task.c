@@ -7,6 +7,7 @@
 #include <include/types.h>
 #include <include/mman.h>
 #include <include/elf.h>
+#include <include/tlbflush.h>
 
 runqueue_t runqueue, waitqueue;
 struct list_head zombie_list;
@@ -87,36 +88,39 @@ static inline int64_t get_pid()
  */
 int do_exec(uint64_t bin_start)
 {
-    uintptr_t sp =
-        USER_VIRT_TOP -
-        sizeof(uintptr_t);  // stack address grows towards lower memory address
+    task_t *task = (task_t *) get_current();
+
+    mm_destroy(&task->mm);
+
+    /* demand paging. only allocate PGD in the beggining */
+    mm_init(&task->mm);
 
     /* Reading ELF Header */
     Elf64_Ehdr *elf64_ehdr = (Elf64_Ehdr *) bin_start;
-    KERNEL_LOG_DEBUG("ELF Header Header");
-    KERNEL_LOG_DEBUG(" %s %x", "e_entry", elf64_ehdr->e_entry);
-    KERNEL_LOG_DEBUG(" %s %x", "e_phoff", elf64_ehdr->e_phoff);
-    KERNEL_LOG_DEBUG(" %s %x", "e_phnum", elf64_ehdr->e_phnum);
+    // KERNEL_LOG_INFO("ELF Header Header");
+    // KERNEL_LOG_INFO(" %s %x", "e_entry", elf64_ehdr->e_entry);
+    // KERNEL_LOG_INFO(" %s %x", "e_phoff", elf64_ehdr->e_phoff);
+    // KERNEL_LOG_INFO(" %s %x", "e_phnum", elf64_ehdr->e_phnum);
 
     /* Reading Program Header */
     Elf64_Phdr *elf64_phdr = NULL;
     for (int i = 0; i < elf64_ehdr->e_phnum; ++i) {
         elf64_phdr = (Elf64_Phdr *) (bin_start + elf64_ehdr->e_phoff +
                                      elf64_ehdr->e_phentsize * i);
-        KERNEL_LOG_DEBUG("Program Header");
-        KERNEL_LOG_DEBUG(" %s %x", "p_type", elf64_phdr->p_type);
-        KERNEL_LOG_DEBUG(" %s %x", "p_vaddr", elf64_phdr->p_vaddr);
-        KERNEL_LOG_DEBUG(" %s %x", "p_offset", elf64_phdr->p_offset);
-        KERNEL_LOG_DEBUG(" %s %x", "p_align", elf64_phdr->p_align);
-        KERNEL_LOG_DEBUG(" %s %x", "p_filesz", elf64_phdr->p_filesz);
-        KERNEL_LOG_DEBUG(" %s %x", "p_memsz", elf64_phdr->p_memsz);
-        KERNEL_LOG_DEBUG(" %s %x", "p_flags", elf64_phdr->p_flags);
+        // KERNEL_LOG_INFO("Program Header");
+        // KERNEL_LOG_INFO(" %s %x", "p_type", elf64_phdr->p_type);
+        // KERNEL_LOG_INFO(" %s %x", "p_vaddr", elf64_phdr->p_vaddr);
+        // KERNEL_LOG_INFO(" %s %x", "p_offset", elf64_phdr->p_offset);
+        // KERNEL_LOG_INFO(" %s %x", "p_align", elf64_phdr->p_align);
+        // KERNEL_LOG_INFO(" %s %x", "p_filesz", elf64_phdr->p_filesz);
+        // KERNEL_LOG_INFO(" %s %x", "p_memsz", elf64_phdr->p_memsz);
+        // KERNEL_LOG_INFO(" %s %x", "p_flags", elf64_phdr->p_flags);
         if (elf64_phdr->p_type == PT_LOAD) {
             break;
         }
     }
     if (elf64_phdr->p_type != PT_LOAD) {
-        KERNEL_LOG_DEBUG("Could not find loadable segment!");
+        // KERNEL_LOG_INFO("Could not find loadable segment!");
         return -1;
     }
 
@@ -140,25 +144,21 @@ int do_exec(uint64_t bin_start)
 
     /* allocate memory for .txt & .bss section */
     if (MAP_FAILED ==
-        do_mmap(p_vaddr_aligned,
+        do_mmap((void *) p_vaddr_aligned,
                 MAX(p_memsz, p_filesz) + (p_offset - p_offset_aligned), p_flags,
-                MAP_FIXED, bin_start, p_offset_aligned))
+                MAP_FIXED, (void *) bin_start, p_offset_aligned))
         return -1;
 
     /* allocate stack */
-    if (MAP_FAILED == do_mmap(sp, PAGE_SIZE, PROT_READ | PROT_WRITE,
-                              MAP_ANONYMOUS, (uint64_t) NULL, 0)) {
-        do_munmap(sp, PAGE_SIZE);
+    uintptr_t sp = USER_VIRT_TOP - sizeof(uintptr_t);
+    if (MAP_FAILED == do_mmap((void *) sp, PAGE_SIZE, PROT_READ | PROT_WRITE,
+                              MAP_ANONYMOUS, NULL, 0)) {
+        //@todo unmap .txt & .bss section
         return -1;
     }
 
     /* update ttbr0_el1 */
-    task_t *task = (task_t *) get_current();
-    create_pgd(&task->mm); /* demand paging. only allocate PGD in the beggining,
-                              the others are delayed */
     update_pgd(task->mm.pgd);
-
-    /* instead of zero-filling .bss section, we zero-fill a new page */
 
     /* switch to el0 */
     asm volatile(
@@ -185,21 +185,10 @@ int64_t do_fork(struct TrapFrame *tf)
     task_t *new_task = get_task_by_id(new_task_id);
     const task_t *cur_task = get_current();
 
-    // fork page table. btree must be forked earlier than page table
-    if (-1 == fork_btree(&new_task->mm, &cur_task->mm) ||
-        -1 == fork_page_table(&new_task->mm, &cur_task->mm)) {
-        /* reclaim new task's resource */
-        new_task->state = TASK_ZOMBIE;
-        list_add_tail(&new_task->node, &zombie_list);
-        mm_struct_destroy(&new_task->mm);
-        return -1;
-    }
+    copy_mm(&new_task->mm, &cur_task->mm);
 
     // page permission changed, flush TLB
-    asm volatile(
-        "tlbi vmalle1is\n"  // invalidate all TLB entries
-        "dsb ish"           // ensure completion of TLB invalidatation
-    );
+    flush_tlb_all();
 
     // parent process and child process have the same content of TrapFrame
     void *kstacktop_new = get_kstacktop_by_id(new_task->tid);
@@ -226,7 +215,7 @@ void do_exit()
     task_t *cur = (task_t *) get_current();
     cur->state = TASK_ZOMBIE;
     list_add_tail(&cur->node, &zombie_list);
-    mm_struct_destroy(&cur->mm);
+    mm_destroy(&cur->mm);
     schedule();
     __builtin_unreachable();
 }
@@ -245,7 +234,7 @@ int64_t privilege_task_create(void (*func)())
     task->counter = TASK_EPOCH;
     task->sig_pending = 0;
     task->sig_blocked = 0;
-    mm_struct_init(&task->mm);
+    mm_init(&task->mm);
     INIT_LIST_HEAD(&task->node);
     runqueue_push(&runqueue, &task);
 
@@ -310,7 +299,6 @@ void idle()
         reschedule();
         delay(100000000);
     }
-    KERNEL_LOG_DEBUG("Test finished");
     while (1)
         ;
 }

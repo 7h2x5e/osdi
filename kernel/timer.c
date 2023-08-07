@@ -18,7 +18,7 @@ void sys_timer_handler()
 {
     *SYSTEM_TIMER_COMPARE1 = *SYSTEM_TIMER_CLO + 2500000U;
     *SYSTEM_TIMER_CS |= SYSTEM_TIMER_CS_M1;
-    KERNEL_LOG_INFO("system timer jiffies: %d", system_timer_jiffies++);
+    KERNEL_LOG_TRACE("system timer jiffies: %d", system_timer_jiffies++);
 }
 
 void sys_timer_disable()
@@ -37,7 +37,7 @@ void arm_timer_init()
 void arm_timer_hanler()
 {
     *ARM_TIMER_IRQ_CLR = 1;
-    KERNEL_LOG_INFO("arm timer jiffies: %d", arm_timer_jiffies++);
+    KERNEL_LOG_TRACE("arm timer jiffies: %d", arm_timer_jiffies++);
 }
 
 void arm_timer_disable()
@@ -61,7 +61,7 @@ void local_timer_disable()
 void local_timer_handler()
 {
     *LOCAL_TIMER_IRQ_CLR = 0xc0000000;  // clear interrupt and reload.
-    KERNEL_LOG_INFO("local timer jiffies: %d", local_timer_jiffies++);
+    KERNEL_LOG_TRACE("local timer jiffies: %d", local_timer_jiffies++);
 }
 
 void core_timer_enable()

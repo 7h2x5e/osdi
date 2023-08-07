@@ -3,22 +3,26 @@
 
 #include <include/types.h>
 
-#define PROT_NONE 0x0
-#define PROT_READ 0x1
-#define PROT_WRITE 0x2
-#define PROT_EXEC 0x4
+typedef enum {
+    PROT_NONE = 0x0,
+    PROT_READ = 0x1,
+    PROT_WRITE = 0x2,
+    PROT_EXEC = 0x4
+} mmap_prot_t;
 
-#define MAP_FIXED 0x0010
-#define MAP_ANONYMOUS 0x0020
+typedef enum {
+    MAP_FIXED = 0x10,
+    MAP_ANONYMOUS = 0x20,
+    MAP_POPULATE = 0x008000
+} mmap_flags_t;
 
-#define MAP_FAILED ((uint64_t) -1)
+#define MAP_FAILED ((void *) -1)
 
-uint64_t do_mmap(uint64_t addr,
-                 uint64_t len,
-                 uint32_t prot,
-                 uint32_t flags,
-                 uint64_t file_start,
-                 uint64_t file_offset);
-int32_t do_munmap(uint64_t addr, uint64_t length);
+void *do_mmap(void *addr,
+              size_t len,
+              mmap_prot_t prot,
+              mmap_flags_t flags,
+              void *file_start,
+              off_t file_offset);
 
 #endif

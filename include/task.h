@@ -88,7 +88,7 @@ void do_exit();
 int64_t privilege_task_create(void (*)());
 void idle();
 void zombie_reaper();
-void update_pgd(uintptr_t);
+void update_pgd(pgd_t *);
 
 #endif
 #endif

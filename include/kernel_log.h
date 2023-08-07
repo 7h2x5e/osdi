@@ -13,9 +13,7 @@
 #define KERNEL_LOG_DEBUG(M, ...)                                   \
     printk("\33[0;32m[kernel][debug][%d]\33[0;39m " M " \33[0m\n", \
            do_get_taskid(), ##__VA_ARGS__)
-#define KERNEL_LOG_INFO(M, ...)                                    \
-    printk("\33[0;37m[kernel][info ][%d]\33[0;39m " M " \33[0m\n", \
-           do_get_taskid(), ##__VA_ARGS__)
+#define KERNEL_LOG_INFO(M, ...) printk(M "\n", ##__VA_ARGS__)
 
 #if LOG_LEVEL < 3
 #undef KERNEL_LOG_TRACE

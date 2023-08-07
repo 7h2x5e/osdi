@@ -10,11 +10,13 @@
 #define PAGE_NUM (0x40000000 / PAGE_SIZE)
 #define KERNEL_STACK_SIZE (PAGE_TABLE_SIZE << 1)  // 8KB
 #define USER_VIRT_TOP 0x0000ffffffffe000ULL
+#define VMA_NUM 4096
 
 #ifndef __ASSEMBLER__
 
 #include <include/types.h>
 #include <include/list.h>
+#include <include/pgtable-types.h>
 #include <include/btree.h>
 
 #define KVA_TO_PA(addr) ((uint64_t) (addr) << 16 >> 16)
@@ -25,40 +27,52 @@
 enum page_flag { PAGE_USED = 1 << 0 };
 
 typedef struct {
-    uintptr_t pgd;                     /* page global directory */
-    struct list_head kernel_page_list; /* list of allocated kernel pages */
-    uint32_t kernel_page_num;          /* number of kernel pages */
-    btree mm_bt;                       /* use B-Tree to manage user pages */
+    pgd_t *pgd;
+    btree mm_bt;
 } mm_struct;
 
 typedef struct {
-    uint32_t flag;
-    int pfn;
-    void *physical;
-    struct list_head head; /* for user page, record processes using the page;
-                              for kernel page, attach to page list of
-                              `mm_struct` and set `refcnt` to 1 */
+    struct list_head head;
     uint32_t refcnt;
 } page_t;
 
-extern page_t page[PAGE_NUM];
-extern struct list_head free_page_list;
-extern size_t free_page_num, used_page_num;
+struct vm_area_struct {
+    virtaddr_t vm_start;
+    virtaddr_t vm_end;
+    mm_struct *vm_mm;
+    pgprot_t vm_page_prot;
+    kernaddr_t vm_file_start;
+    off_t vm_file_offset;
+    size_t vm_file_len;
+    struct list_head alloc_link;
+};
 
-bool is_set(uint32_t, uint32_t);
-void set(uint32_t *, uint32_t);
-void unset(uint32_t *, uint32_t);
-void *create_pgd(mm_struct *);
-void *page_alloc_kernel(mm_struct *);
-void *page_alloc_user(mm_struct *, uint64_t);
-void mm_struct_init(mm_struct *);
-void mm_struct_destroy(mm_struct *);
-uint64_t map_addr_user(uint64_t, int prot);
-int fork_page(void *dst, const void *src);
-int fork_page_table(mm_struct *, const mm_struct *);
-void *btree_page_malloc(size_t size);
-void btree_page_free(void *ptr);
-int fork_btree(mm_struct *, const mm_struct *);
+typedef struct {
+    union {
+        b_key _x;
+        b_node _y;
+        btree _z;
+    };
+    struct list_head head;
+} btree_node_t;
+
+void mem_init();
+void page_init();
+page_t *page_alloc();
+void unmap_page(mm_struct *mm, virtaddr_t addr);
+physaddr_t page2pa(page_t *);
+page_t *pa2page(physaddr_t);
+int32_t follow_pte(mm_struct *mm, virtaddr_t address, pte_t **ptepp);
+int32_t insert_page(mm_struct *, page_t *, virtaddr_t, pgprot_t);
+void mm_init(mm_struct *);
+void mm_destroy(mm_struct *);
+void copy_mm(mm_struct *dst, const mm_struct *src);
+void btree_node_init();
+void *btree_node_malloc(size_t size);
+void btree_node_free(void *ptr);
+void vma_init();
+struct vm_area_struct *vma_alloc();
+void vma_free(struct vm_area_struct *);
 
 #endif
 #endif

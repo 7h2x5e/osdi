@@ -3,38 +3,21 @@
 #include <include/list.h>
 #include <include/types.h>
 
+#define BTREE_DATA_NUM (1 << 13) /* 8192 */
+
 enum node_type { BTREE_EXTERNAL_NODE, BTREE_INTERNAL_NODE };
 
 typedef struct _b_key b_key;
 typedef struct _b_node b_node;
 typedef struct _btree btree;
-typedef struct {
-    uint64_t f_addr; /* file content copied to memory region */
-    size_t f_size;   /* file content size */
-    uint32_t prot;   /* page protection bit */
-    /*
-       page_t                  page_info
-    ┌──────────┐             ┌──────────┐
-    │          │             │          │
-    │          │ ◄───────────┼─ p_page  │
-    │          │             │          │
-    │ ┌──────┐ │  ┌──────┐   │ ┌──────┐ │
-    │ │ head ├─┼──► .... ├───┼─► head ├─┼───►...
-    │ └──────┘ │  └──────┘   │ └──────┘ │
-    │          │             │          │
-    └──────────┘             └──────────┘
-    */
-    void *p_page; /* point to `page_t`, if page wasn't allocated, it's NULL */
-    struct list_head head; /* attach to list of page */
-} page_info;
 
 struct _b_key {
     struct list_head key_h;   /* list of key */
     struct list_head b_key_h; /* list of all keys */
-    uint64_t start, end;
-    page_info pf;             /* page information */
     b_node *container;        /* node contain the key */
     b_node *c_left, *c_right; /* point to child */
+    uint64_t start, end;
+    void *entry;
 };
 
 struct _b_node {
@@ -51,6 +34,9 @@ struct _btree {
     uint64_t min, max;
 };
 
+#define bt_for_each(__tree, __key) \
+    list_for_each_entry(__key, &(__tree)->b_key_h, b_key_h)
+
 bool is_minimum(b_key *);
 bool is_maximum(b_key *);
 void bt_init(btree *);
@@ -64,7 +50,6 @@ b_key *bt_find_empty_area(b_node *node,
 uint32_t bt_insert_range(b_node **root,
                          uint64_t start,
                          uint64_t end,
-                         uint64_t size,
-                         page_info *pg_info);
+                         void *entry);
 
 #endif

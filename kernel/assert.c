@@ -9,7 +9,7 @@ const char *panicstr;
  * Panic is called on unresolvable fatal errors.
  * It prints "panic: mesg", and then enters the kernel monitor.
  */
-void _panic(const char *file, int line, const char *fmt, const char *str)
+void _panic(const char *file, int line, const char *fmt, ...)
 {
     if (panicstr)
         goto dead;
@@ -20,7 +20,7 @@ void _panic(const char *file, int line, const char *fmt, const char *str)
     uart_set_mode(UART_POLLING_MODE);
 
     printk("kernel panic at %s:%d\n", file, line);
-    printk(fmt, str);
+    printk(fmt);
     printk("\n");
 
 dead:
@@ -29,9 +29,9 @@ dead:
 }
 
 /* like panic, but don't */
-void _warn(const char *file, int line, const char *fmt, const char *str)
+void _warn(const char *file, int line, const char *fmt, ...)
 {
     printk("kernel warn at %s:%d\n", file, line);
-    printk(fmt, str);
+    printk(fmt);
     printk("\n");
 }

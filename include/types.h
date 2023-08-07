@@ -26,6 +26,7 @@ typedef int64_t intptr_t;
 typedef uint64_t uintptr_t;
 typedef uint64_t physaddr_t;
 typedef uint64_t kernaddr_t;
+typedef uint64_t virtaddr_t;
 
 // Page numbers are 64 bits long.
 typedef uint64_t ppn_t;
