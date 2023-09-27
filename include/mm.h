@@ -32,8 +32,9 @@ typedef struct {
 } mm_struct;
 
 typedef struct {
-    struct list_head head;
+    struct list_head buddy_list;
     uint32_t refcnt;
+    uint8_t order;
 } page_t;
 
 struct vm_area_struct {
@@ -57,6 +58,9 @@ typedef struct {
 } btree_node_t;
 
 void mem_init();
+void buddy_init();
+page_t *buddy_alloc(uint8_t);
+void buddy_free(page_t *);
 void page_init();
 page_t *page_alloc();
 void unmap_page(mm_struct *mm, virtaddr_t addr);

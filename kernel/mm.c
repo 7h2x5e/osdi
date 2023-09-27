@@ -13,6 +13,7 @@
 #include <include/assert.h>
 #include <include/error.h>
 #include <include/tlbflush.h>
+#include <include/buddy.h>
 
 static void page_free(page_t *pp);
 static void page_decref(page_t *);
@@ -26,8 +27,7 @@ static void pgtable_test();
 
 static kernaddr_t nextfree;  // virtual address of next byte of free memory
 static page_t *pages;
-static struct list_head free_page_list;
-static size_t used_page_num;
+struct buddy_system buddy_system;
 
 static btree_node_t *btree_nodes;
 static struct list_head free_btree_node_list;
@@ -96,7 +96,7 @@ void mem_init()
     memset(pages, 0, sizeof(page_t) * PAGE_NUM);
     memset(btree_nodes, 0, sizeof(btree_node_t) * BTREE_DATA_NUM);
 
-    page_init();
+    buddy_init();
     vma_init();
     btree_node_init();
 
@@ -167,41 +167,125 @@ void create_page_table()
         ::"r"(pgd));
 }
 
-void page_init()
+static inline void add_page_to_free_list(page_t *pp,
+                                         struct buddy_system *buddy_system,
+                                         uint8_t order)
 {
-    INIT_LIST_HEAD(&free_page_list);
-    for (; nextfree < MMIO_BASE; nextfree += PAGE_SIZE) {
-        page_t *pp = pa2page(KVA_TO_PA(nextfree));
-        list_add(&pp->head, &free_page_list);
+    list_add(&pp->buddy_list, &buddy_system->free_area[order].free_list);
+    buddy_system->free_area[order].nr_free++;
+}
+
+static inline void del_page_from_free_list(page_t *pp,
+                                           struct buddy_system *buddy_system,
+                                           uint8_t order)
+{
+    list_del_init(&pp->buddy_list);
+    buddy_system->free_area[order].nr_free--;
+}
+
+static inline page_t *buddy_find(page_t *pp, uint8_t order)
+{
+    return pa2page(page2pa(pp) ^ (1ull << (order + PAGE_SHIFT)));
+}
+
+static inline uint8_t buddy_order(uint64_t size)
+{
+    assert(size >= PAGE_SIZE);
+    return 63 - __builtin_clz(size >> PAGE_SHIFT);
+}
+
+void buddy_init()
+{
+    for (uint8_t order = 0; order < MAX_ORDER; order++) {
+        INIT_LIST_HEAD(&buddy_system.free_area[order].free_list);
     }
-    used_page_num = 0;
+
+    for (physaddr_t addr = 0; addr < KVA_TO_PA(MMIO_BASE); addr += PAGE_SIZE) {
+        page_t *pp = pa2page(addr);
+        INIT_LIST_HEAD(&pp->buddy_list);
+    }
+
+    physaddr_t next_buddy_addr = KVA_TO_PA(nextfree);
+    physaddr_t physical_mmio_addr = KVA_TO_PA(MMIO_BASE);
+    while (next_buddy_addr < physical_mmio_addr) {
+        uint8_t order = MIN(MAX_ORDER - 1,
+                            buddy_order(physical_mmio_addr - next_buddy_addr));
+        page_t *pp = pa2page(next_buddy_addr);
+        pp->order = order;
+        add_page_to_free_list(pp, &buddy_system, order);
+        next_buddy_addr += 1ULL << (PAGE_SHIFT + order);
+    }
+}
+
+page_t *buddy_alloc(uint8_t order)
+{
+    uint8_t target = order;
+    while (target < MAX_ORDER && buddy_system.free_area[target].nr_free == 0)
+        target++;
+    if (target == MAX_ORDER) {
+        return NULL;
+    }
+
+    while (target > order) {
+        page_t *pp1 =
+                   list_first_entry(&buddy_system.free_area[target].free_list,
+                                    page_t, buddy_list),
+               *pp2 = buddy_find(pp1, target - 1);
+        del_page_from_free_list(pp1, &buddy_system, target);
+        add_page_to_free_list(pp1, &buddy_system, target - 1);
+        add_page_to_free_list(pp2, &buddy_system, target - 1);
+        pp1->order = pp2->order = target - 1;
+        target--;
+    }
+
+    page_t *free_page = list_first_entry(
+        &buddy_system.free_area[order].free_list, page_t, buddy_list);
+    del_page_from_free_list(free_page, &buddy_system, order);
+    return free_page;
+}
+
+void buddy_free(page_t *pp)
+{
+    virtaddr_t start = PA_TO_KVA(boot_alloc(0));
+
+    add_page_to_free_list(pp, &buddy_system, pp->order);
+
+    while (start < MMIO_BASE) {
+        page_t *pp = pa2page(KVA_TO_PA(start));
+
+        if (!list_empty(&pp->buddy_list)) {
+            while (pp->order < MAX_ORDER - 1 && PAGE_SIZE < MMIO_BASE - start) {
+                page_t *b_pp = buddy_find(pp, pp->order);
+
+                if (list_empty(&b_pp->buddy_list) || (pp->order != b_pp->order))
+                    break;
+
+                del_page_from_free_list(pp, &buddy_system, pp->order);
+                del_page_from_free_list(b_pp, &buddy_system, b_pp->order);
+                pp->order++;
+                add_page_to_free_list(pp, &buddy_system, pp->order);
+            }
+        }
+
+        start += 1ULL << (PAGE_SHIFT + pp->order);
+    }
 }
 
 page_t *page_alloc()
 {
-    if (list_empty(&free_page_list))
+    page_t *free_page = buddy_alloc(0);
+    if (!free_page)
         return NULL;
-
-    page_t *free_page = list_first_entry(&free_page_list, page_t, head);
-    list_del_init(&free_page->head);
-    memset((void *) PA_TO_KVA(page2pa(free_page)), 0, PAGE_SIZE);
     free_page->refcnt = 0;
-    used_page_num++;
-
-    KERNEL_LOG_TRACE("alloc page 0x%x", PA_TO_KVA(page2pa(free_page)));
-
+    memset((void *) PA_TO_KVA(page2pa(free_page)), 0, PAGE_SIZE);
     return free_page;
 }
 
 static void page_free(page_t *pp)
 {
-    if (pp->refcnt != 0 || !list_empty(&pp->head))
+    if (pp->refcnt != 0)
         panic("page_free error");
-
-    list_add(&pp->head, &free_page_list);
-    used_page_num--;
-
-    KERNEL_LOG_TRACE("return page 0x%x to free list", PA_TO_KVA(page2pa(pp)));
+    buddy_free(pp);
 }
 
 static void page_decref(page_t *pp)
