@@ -4,12 +4,18 @@
 #include <include/error.h>
 #include <include/assert.h>
 #include <include/kernel_log.h>
+#include <include/slab.h>
 
-#define malloc(x) btree_node_malloc(x)
-#define free(x) btree_node_free(x)
 #define KEY_MAX 4 /* must >= 2 */
 #define MIN_KEY ((void *) 0x00100100)
 #define MAX_KEY ((void *) 0x00200200)
+union btree_mixed {
+    b_key _x;
+    b_node _y;
+    btree _z;
+};
+
+static DEFINE_SLAB(btree_slab, sizeof(union btree_mixed));
 
 bool is_minimum(b_key *key)
 {
@@ -31,7 +37,7 @@ bool is_maximum(b_key *key)
 
 static b_key *allocate_key(uint64_t start, uint64_t end)
 {
-    b_key *key = (b_key *) malloc(sizeof(b_key));
+    b_key *key = (b_key *) slab_alloc(&btree_slab);
     key->c_left = key->c_right = NULL;
     key->start = start;
     key->end = end;
@@ -44,7 +50,7 @@ static b_key *allocate_key(uint64_t start, uint64_t end)
 
 static b_node *allocate_node(enum node_type type)
 {
-    b_node *node = (b_node *) malloc(sizeof(b_node));
+    b_node *node = (b_node *) slab_alloc(&btree_slab);
     node->count = 0;
     INIT_LIST_HEAD(&node->key_h);
     node->p_left = node->p_right = NULL;
@@ -61,7 +67,7 @@ static void free_key(b_key *key)
     if (key->entry && key->entry != MIN_KEY && key->entry != MAX_KEY) {
         vma_free(key->entry);
     }
-    free(key);
+    slab_free(&btree_slab, key);
 }
 
 static void free_node(b_node *node)
@@ -82,7 +88,7 @@ static void free_node(b_node *node)
                 free_key(key);
             }
         }
-        free(node);
+        slab_free(&btree_slab, node);
     }
 }
 

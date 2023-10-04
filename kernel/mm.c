@@ -14,6 +14,7 @@
 #include <include/error.h>
 #include <include/tlbflush.h>
 #include <include/buddy.h>
+#include <include/slab.h>
 
 static void page_free(page_t *pp);
 static void page_decref(page_t *);
@@ -29,13 +30,7 @@ static kernaddr_t nextfree;  // virtual address of next byte of free memory
 static page_t *pages;
 struct buddy_system buddy_system;
 
-static btree_node_t *btree_nodes;
-static struct list_head free_btree_node_list;
-static size_t used_btree_node_num;
-
-static struct vm_area_struct *vmas;
-static struct list_head vma_free_list;
-static size_t used_vma;
+static DEFINE_SLAB(vma_slab, sizeof(struct vm_area_struct));
 
 static inline pgd_t *pgd_alloc()
 {
@@ -89,16 +84,7 @@ void mem_init()
     KERNEL_LOG_INFO("nextfree=0x%x", boot_alloc(0));
 
     pages = (page_t *) boot_alloc(sizeof(page_t) * PAGE_NUM);
-    vmas = (struct vm_area_struct *) boot_alloc(sizeof(struct vm_area_struct) *
-                                                VMA_NUM);
-    btree_nodes =
-        (btree_node_t *) boot_alloc(sizeof(btree_node_t) * BTREE_DATA_NUM);
-    memset(pages, 0, sizeof(page_t) * PAGE_NUM);
-    memset(btree_nodes, 0, sizeof(btree_node_t) * BTREE_DATA_NUM);
-
     buddy_init();
-    vma_init();
-    btree_node_init();
 
     pgtable_test();
 }
@@ -561,57 +547,10 @@ void copy_mm(mm_struct *dst, const mm_struct *src)
     }
 }
 
-void btree_node_init()
-{
-    INIT_LIST_HEAD(&free_btree_node_list);
-    for (int i = 0; i < BTREE_DATA_NUM; i++) {
-        list_add(&btree_nodes[i].head, &free_btree_node_list);
-    }
-    used_btree_node_num = 0;
-}
-
-void *btree_node_malloc(size_t size)
-{
-    btree_node_t *p = NULL;
-    if (list_empty(&free_btree_node_list))
-        return p;
-
-    p = list_first_entry(&free_btree_node_list, btree_node_t, head);
-    list_del_init(&p->head);
-    used_btree_node_num++;
-    return (void *) p;
-}
-
-void btree_node_free(void *_p)
-{
-    btree_node_t *p = (btree_node_t *) _p;
-    if (!p)
-        return;
-    if (!list_empty(&p->head))
-        panic("btree_node_free error");
-
-    list_add(&p->head, &free_btree_node_list);
-    used_btree_node_num--;
-}
-
-void vma_init()
-{
-    INIT_LIST_HEAD(&vma_free_list);
-    for (size_t idx = 0; idx < VMA_NUM; ++idx) {
-        list_add(&vmas[idx].alloc_link, &vma_free_list);
-    }
-    used_vma = 0;
-}
-
 struct vm_area_struct *vma_alloc()
 {
-    struct vm_area_struct *vma = NULL;
-    if (list_empty(&vma_free_list))
-        return vma;
-
-    vma = list_first_entry(&vma_free_list, struct vm_area_struct, alloc_link);
-    list_del_init(&vma->alloc_link);
-    used_vma++;
+    struct vm_area_struct *vma =
+        (struct vm_area_struct *) slab_alloc(&vma_slab);
     return vma;
 }
 
@@ -619,11 +558,7 @@ void vma_free(struct vm_area_struct *vma)
 {
     if (!vma)
         return;
-    if (!list_empty(&vma->alloc_link))
-        panic("vma_free error");
-
-    list_add(&vma->alloc_link, &vma_free_list);
-    used_vma--;
+    slab_free(&vma_slab, vma);
 }
 
 static void pgtable_test()

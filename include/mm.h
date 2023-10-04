@@ -48,15 +48,6 @@ struct vm_area_struct {
     struct list_head alloc_link;
 };
 
-typedef struct {
-    union {
-        b_key _x;
-        b_node _y;
-        btree _z;
-    };
-    struct list_head head;
-} btree_node_t;
-
 void mem_init();
 void buddy_init();
 page_t *buddy_alloc(uint8_t);
@@ -71,10 +62,6 @@ int32_t insert_page(mm_struct *, page_t *, virtaddr_t, pgprot_t);
 void mm_init(mm_struct *);
 void mm_destroy(mm_struct *);
 void copy_mm(mm_struct *dst, const mm_struct *src);
-void btree_node_init();
-void *btree_node_malloc(size_t size);
-void btree_node_free(void *ptr);
-void vma_init();
 struct vm_area_struct *vma_alloc();
 void vma_free(struct vm_area_struct *);
 
