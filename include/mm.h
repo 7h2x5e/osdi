@@ -35,6 +35,7 @@ typedef struct {
     struct list_head buddy_list;
     uint32_t refcnt;
     uint8_t order;
+    struct slab *page_slab;
 } page_t;
 
 struct vm_area_struct {

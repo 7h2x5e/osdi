@@ -32,7 +32,13 @@ struct slab_page {
 #define DEFINE_SLAB(slabname, size) \
     struct slab slabname = __SLAB_INITIALIZER(slabname, size)
 
-void *slab_alloc(struct slab *);
-void slab_free(struct slab *, void *);
+struct kmalloc_info_struct {
+    const char *name;
+    unsigned int size;
+    struct slab *slab;
+};
+
+void kfree(const void *);
+void *kmalloc(size_t);
 
 #endif

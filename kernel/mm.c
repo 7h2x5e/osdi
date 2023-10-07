@@ -30,8 +30,6 @@ static kernaddr_t nextfree;  // virtual address of next byte of free memory
 static page_t *pages;
 struct buddy_system buddy_system;
 
-static DEFINE_SLAB(vma_slab, sizeof(struct vm_area_struct));
-
 static inline pgd_t *pgd_alloc()
 {
     page_t *pp = page_alloc();
@@ -177,7 +175,7 @@ static inline page_t *buddy_find(page_t *pp, uint8_t order)
 static inline uint8_t buddy_order(uint64_t size)
 {
     assert(size >= PAGE_SIZE);
-    return 63 - __builtin_clz(size >> PAGE_SHIFT);
+    return 63 - __builtin_clzll(size >> PAGE_SHIFT);
 }
 
 void buddy_init()
@@ -263,6 +261,7 @@ page_t *page_alloc()
     if (!free_page)
         return NULL;
     free_page->refcnt = 0;
+    free_page->page_slab = NULL;
     memset((void *) PA_TO_KVA(page2pa(free_page)), 0, PAGE_SIZE);
     return free_page;
 }
@@ -550,7 +549,7 @@ void copy_mm(mm_struct *dst, const mm_struct *src)
 struct vm_area_struct *vma_alloc()
 {
     struct vm_area_struct *vma =
-        (struct vm_area_struct *) slab_alloc(&vma_slab);
+        (struct vm_area_struct *) kmalloc(sizeof(struct vm_area_struct));
     return vma;
 }
 
@@ -558,7 +557,7 @@ void vma_free(struct vm_area_struct *vma)
 {
     if (!vma)
         return;
-    slab_free(&vma_slab, vma);
+    kfree(vma);
 }
 
 static void pgtable_test()
