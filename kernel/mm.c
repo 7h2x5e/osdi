@@ -15,6 +15,7 @@
 #include <include/tlbflush.h>
 #include <include/buddy.h>
 #include <include/slab.h>
+#include <include/tmpfs.h>
 
 static void page_free(page_t *pp);
 static void page_decref(page_t *);
@@ -83,8 +84,7 @@ void mem_init()
 
     pages = (page_t *) boot_alloc(sizeof(page_t) * PAGE_NUM);
     buddy_init();
-
-    pgtable_test();
+    tmpfs_init();
 }
 
 /* Page table size and content:
@@ -528,6 +528,9 @@ void copy_mm(mm_struct *dst, const mm_struct *src)
             new_vma->vm_end = vma->vm_end;
             new_vma->vm_mm = dst;
             new_vma->vm_page_prot = vma->vm_page_prot;
+            new_vma->vm_file_start = vma->vm_file_start;
+            new_vma->vm_file_offset = vma->vm_file_offset;
+            new_vma->vm_file_len = vma->vm_file_len;
 
             pte_t *ptep;
             for (virtaddr_t va = key->start; va < key->end; va += PAGE_SIZE) {
