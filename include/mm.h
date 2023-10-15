@@ -46,7 +46,6 @@ struct vm_area_struct {
     kernaddr_t vm_file_start;
     off_t vm_file_offset;
     size_t vm_file_len;
-    struct list_head alloc_link;
 };
 
 void mem_init();
