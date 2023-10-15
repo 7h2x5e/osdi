@@ -4,6 +4,7 @@
 #include <include/mm.h>
 #include <include/assert.h>
 #include <include/compiler.h>
+#include <include/string.h>
 
 DEFINE_SLAB(kmalloc_slab_96, 96);
 DEFINE_SLAB(kmalloc_slab_192, 192);
@@ -155,4 +156,11 @@ void kfree(const void *x)
         return;
     }
     slab_free(page->page_slab, (void *) x);
+}
+
+void *kzalloc(size_t size)
+{
+    void *ptr = kmalloc(size);
+    memset(ptr, 0, size);
+    return ptr;
 }

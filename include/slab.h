@@ -40,5 +40,6 @@ struct kmalloc_info_struct {
 
 void kfree(const void *);
 void *kmalloc(size_t);
+void *kzalloc(size_t);
 
 #endif
