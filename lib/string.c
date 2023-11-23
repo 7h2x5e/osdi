@@ -17,6 +17,19 @@ int strcmp(const char *p1, const char *p2)
     return c1 - c2;
 }
 
+char *strcpy(char *dest, const char *src)
+{
+    char c;
+    char *s = (char *) src, *d = dest;
+
+    do {
+        c = *s++;
+        *d++ = c;
+    } while (c != '\0');
+
+    return dest;
+}
+
 int strlen(const char *str)
 {
     int count = 0;
@@ -72,4 +85,20 @@ void *memset(void *s, int c, size_t n)
     }
 
     return s;
+}
+
+int memcmp(const void *s1, const void *s2, size_t n)
+{
+    const uint8_t *byte1 = (const uint8_t *) s1;
+    const uint8_t *byte2 = (const uint8_t *) s2;
+    while ((*byte1 == *byte2) && (n > 0)) {
+        ++byte1;
+        ++byte2;
+        --n;
+    }
+
+    if (n == 0) {
+        return 0;
+    }
+    return *byte1 - *byte2;
 }
