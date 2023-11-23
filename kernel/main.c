@@ -6,6 +6,7 @@
 #include <include/task.h>
 #include <include/demo.h>
 #include <include/mm.h>
+#include <include/tmpfs.h>
 
 void main()
 {
@@ -16,6 +17,7 @@ void main()
     fb_init();
     fb_showpicture();
     mem_init();
+    tmpfs_init();
     init_task();
     core_timer_enable();
 

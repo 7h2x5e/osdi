@@ -15,7 +15,6 @@
 #include <include/tlbflush.h>
 #include <include/buddy.h>
 #include <include/slab.h>
-#include <include/tmpfs.h>
 
 static void page_free(page_t *pp);
 static void page_decref(page_t *);
@@ -84,7 +83,6 @@ void mem_init()
 
     pages = (page_t *) boot_alloc(sizeof(page_t) * PAGE_NUM);
     buddy_init();
-    tmpfs_init();
 }
 
 /* Page table size and content:

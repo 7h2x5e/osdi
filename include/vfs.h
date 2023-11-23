@@ -3,23 +3,41 @@
 
 #include <include/types.h>
 
+#define MAX_CHILD_DIR 10
+
+enum file_op_flag {
+    O_CREAT = 0b1,
+};
+
+enum node_attr_flag {
+    DIRECTORY,
+    FILE,
+};
+
 struct vnode {
     struct mount *mount;
     struct vnode_operations *v_ops;
     struct file_operations *f_ops;
-    void *internal;
 };
 
-struct file {
+typedef struct dentry {
+    char *name;
+    enum node_attr_flag flag;
     struct vnode *vnode;
+    int child_amount;
+    struct dentry *parent;
+    struct dentry *child[MAX_CHILD_DIR];
+    void *internal;
+} dentry_t;
+
+typedef struct file {
+    dentry_t *dentry;
     size_t f_pos;
-    struct file_operations *f_ops;
-    int flags;
-};
+} file_t;
 
 struct mount {
-    struct vnode *root;
     struct filesystem *fs;
+    struct dentry *root_dir;
 };
 
 struct filesystem {
@@ -28,23 +46,23 @@ struct filesystem {
 };
 
 struct file_operations {
-    int (*write)(struct file *file, const void *buf, size_t len);
-    int (*read)(struct file *file, void *buf, size_t len);
+    int (*write)(file_t *file, const void *buf, size_t len);
+    int (*read)(file_t *file, void *buf, size_t len);
 };
 
 struct vnode_operations {
-    int (*lookup)(struct vnode *dir_node,
-                  struct vnode **target,
+    int (*lookup)(struct dentry *dir_node,
+                  struct dentry **target,
                   const char *component_name);
-    int (*create)(struct vnode *dir_node,
-                  struct vnode **target,
+    int (*create)(struct dentry *dir_node,
+                  struct dentry **target,
                   const char *component_name);
 };
 
 int register_filesystem(struct filesystem *fs);
-struct file *vfs_open(const char *pathname, int flags);
-int vfs_close(struct file *file);
-int vfs_write(struct file *file, const void *buf, size_t len);
-int vfs_read(struct file *file, void *buf, size_t len);
+file_t *vfs_open(const char *pathname, int flags);
+int vfs_close(file_t *file);
+int vfs_write(file_t *file, const void *buf, size_t len);
+int vfs_read(file_t *file, void *buf, size_t len);
 
 #endif
