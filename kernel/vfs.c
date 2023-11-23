@@ -129,3 +129,12 @@ file_t *vfs_open(const char *pathname, int flags)
 
     return file;
 }
+
+int vfs_close(file_t *file)
+{
+    if (file) {
+        kfree(file);
+    }
+
+    return 0;
+}
