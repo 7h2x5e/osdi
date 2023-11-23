@@ -138,3 +138,8 @@ int vfs_close(file_t *file)
 
     return 0;
 }
+
+int vfs_write(file_t *file, const void *buf, size_t len)
+{
+    return file->dentry->vnode->f_ops->write(file, buf, len);
+}
