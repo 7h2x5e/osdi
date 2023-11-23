@@ -143,3 +143,8 @@ int vfs_write(file_t *file, const void *buf, size_t len)
 {
     return file->dentry->vnode->f_ops->write(file, buf, len);
 }
+
+int vfs_read(file_t *file, void *buf, size_t len)
+{
+    return file->dentry->vnode->f_ops->read(file, buf, len);
+}
