@@ -3,6 +3,7 @@
 #include <include/string.h>
 #include <include/slab.h>
 #include <include/kernel_log.h>
+#include <include/assert.h>
 
 static struct mount *rootfs = NULL;
 
@@ -173,4 +174,73 @@ dirent_t *vfs_readdir(dir_t *dir, dirent_t *entry)
 void vfs_closedir(dir_t *dir)
 {
     kfree(dir);
+}
+
+void vfs_test()
+{
+    file_t *file;
+    uint8_t buf[64], testdata[64];  // assume max file size in tmpfs = 64 bytes
+    size_t count;
+    dirent_t entry;
+    dir_t *dir;
+
+    for (int i = 0; i < 64; i++)
+        testdata[i] = i;
+
+    KERNEL_LOG_INFO("<-- VFS API Test Start -->");
+
+    KERNEL_LOG_INFO("==> Open root directory: /");
+    file = vfs_open("/", 0);
+    assert(file != NULL);
+    vfs_close(file);
+
+    KERNEL_LOG_INFO("==> Parent directory not exist: %s", "/komica/komica.txt");
+    file = vfs_open("/komica/2", 0);
+    assert(file == NULL);
+    vfs_close(file);
+
+    KERNEL_LOG_INFO("==> File not exist: %s", "/komica.txt");
+    file = vfs_open("/komica.txt", 0);
+    assert(file == NULL);
+    vfs_close(file);
+
+    KERNEL_LOG_INFO("==> Open and create file: %s", "/komica.txt");
+    file = vfs_open("/komica.txt", O_CREAT);
+    assert(file != NULL);
+    vfs_close(file);
+
+    KERNEL_LOG_INFO("==> Write to file: %s", "/komica.txt");
+    file = vfs_open("/komica.txt", 0);
+    assert(file != NULL);
+    count = vfs_write(file, testdata, 32);
+    assert(count == 32);
+    count = vfs_write(file, testdata + 32, 32);
+    assert(count == 32);
+    count = vfs_write(file, testdata + 64, 32);
+    assert(count == 0);  // full
+    vfs_close(file);
+
+    KERNEL_LOG_INFO("==> Read from file: %s", "/komica.txt");
+    file = vfs_open("/komica.txt", 0);
+    assert(file != NULL);
+    count = vfs_read(file, buf, 128);
+    assert(count == 64);
+    assert(0 == memcmp(testdata, buf, 64));
+    vfs_close(file);
+
+    KERNEL_LOG_INFO("==> List all entry in root directory");
+    file = vfs_open("/komica2.txt", O_CREAT);
+    vfs_close(file);
+    file = vfs_open("/komica3.txt", O_CREAT);
+    vfs_close(file);
+    dir = vfs_opendir("/");
+    assert(dir != NULL);
+    KERNEL_LOG_INFO("Type\tFilename");
+    while (vfs_readdir(dir, &entry) != NULL) {
+        KERNEL_LOG_INFO("%c\t%s", entry.dentry->flag == DIRECTORY ? 'D' : 'F',
+                        entry.dentry->name);
+    }
+    vfs_closedir(dir);
+
+    KERNEL_LOG_INFO("<-- VFS API Test End -->");
 }

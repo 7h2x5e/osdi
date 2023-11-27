@@ -7,6 +7,7 @@
 #include <include/demo.h>
 #include <include/mm.h>
 #include <include/tmpfs.h>
+#include <include/vfs.h>
 
 void main()
 {
@@ -18,6 +19,7 @@ void main()
     fb_showpicture();
     mem_init();
     tmpfs_init();
+    vfs_test();
     init_task();
     core_timer_enable();
 

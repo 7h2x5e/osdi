@@ -76,5 +76,6 @@ int vfs_read(file_t *file, void *buf, size_t len);
 dir_t *vfs_opendir(char *pathname);
 dirent_t *vfs_readdir(dir_t *dir, dirent_t *entry);
 void vfs_closedir(dir_t *dir);
+void vfs_test();
 
 #endif
