@@ -35,6 +35,15 @@ typedef struct file {
     size_t f_pos;
 } file_t;
 
+typedef struct dir {
+    off_t idx; /* Position of next directory entry to read.  */
+    dentry_t *dentry;
+} dir_t;
+
+typedef struct dirent {
+    dentry_t *dentry;
+} dirent_t;
+
 struct mount {
     struct filesystem *fs;
     struct dentry *root_dir;
@@ -64,5 +73,8 @@ file_t *vfs_open(const char *pathname, int flags);
 int vfs_close(file_t *file);
 int vfs_write(file_t *file, const void *buf, size_t len);
 int vfs_read(file_t *file, void *buf, size_t len);
+dir_t *vfs_opendir(char *pathname);
+dirent_t *vfs_readdir(dir_t *dir, dirent_t *entry);
+void vfs_closedir(dir_t *dir);
 
 #endif

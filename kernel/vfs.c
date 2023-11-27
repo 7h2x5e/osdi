@@ -148,3 +148,29 @@ int vfs_read(file_t *file, void *buf, size_t len)
 {
     return file->dentry->vnode->f_ops->read(file, buf, len);
 }
+
+dir_t *vfs_opendir(char *pathname)
+{
+    dir_t *dir = NULL;
+    file_t *file = vfs_open(pathname, 0);
+    if (file && file->dentry->flag == DIRECTORY) {
+        dir = kmalloc(sizeof(dir_t));
+        dir->idx = 0;
+        dir->dentry = file->dentry;
+    }
+    vfs_close(file);
+    return dir;
+}
+
+dirent_t *vfs_readdir(dir_t *dir, dirent_t *entry)
+{
+    if (!dir || !entry || dir->dentry->child_amount <= dir->idx)
+        return NULL;
+    entry->dentry = dir->dentry->child[dir->idx++];
+    return entry;
+}
+
+void vfs_closedir(dir_t *dir)
+{
+    kfree(dir);
+}
