@@ -78,4 +78,10 @@ dirent_t *vfs_readdir(dir_t *dir, dirent_t *entry);
 void vfs_closedir(dir_t *dir);
 void vfs_test();
 
+/* for syscall */
+int32_t do_open(char *pathname, int32_t flags);
+int32_t do_close(int32_t fd);
+ssize_t do_write(int32_t fd, void *buf, size_t size);
+ssize_t do_read(int32_t fd, void *buf, size_t size);
+
 #endif

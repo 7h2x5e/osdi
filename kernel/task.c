@@ -8,6 +8,7 @@
 #include <include/mman.h>
 #include <include/elf.h>
 #include <include/tlbflush.h>
+#include <include/vfs.h>
 
 runqueue_t runqueue, waitqueue;
 struct list_head zombie_list;
@@ -236,6 +237,7 @@ int64_t privilege_task_create(void (*func)())
     task->sig_blocked = 0;
     mm_init(&task->mm);
     INIT_LIST_HEAD(&task->node);
+    memset(task->fdt, 0, sizeof(task->fdt));
     runqueue_push(&runqueue, &task);
 
     return (int64_t) tid;

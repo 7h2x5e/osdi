@@ -18,6 +18,10 @@ enum {
     SYS_exit,
     SYS_kill,
     SYS_mmap,
+    SYS_open,
+    SYS_close,
+    SYS_read,
+    SYS_write,
 };
 
 void syscall_handler(struct TrapFrame *tf);
@@ -34,6 +38,10 @@ int64_t fork();
 int64_t exit();
 int32_t kill(pid_t, int32_t);
 void *mmap(void *, size_t, int32_t, int32_t, void *, int32_t);
+int32_t open(char *, int32_t);
+int32_t close(int32_t);
+ssize_t read(int32_t, void *, size_t);
+ssize_t write(int32_t, void *, size_t);
 
 /* wrapper */
 int64_t sys_reset(uint64_t);
@@ -47,5 +55,9 @@ int64_t sys_fork(struct TrapFrame *);
 int64_t sys_exit();
 int64_t sys_kill(pid_t, int32_t);
 int64_t sys_mmap(struct TrapFrame *);
+int64_t sys_open(char *, int32_t);
+int64_t sys_close(int32_t);
+int64_t sys_read(int32_t, void *, size_t);
+int64_t sys_write(int32_t, void *, size_t);
 
 #endif

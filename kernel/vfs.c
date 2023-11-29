@@ -4,6 +4,7 @@
 #include <include/slab.h>
 #include <include/kernel_log.h>
 #include <include/assert.h>
+#include <include/task.h>
 
 static struct mount *rootfs = NULL;
 
@@ -174,6 +175,65 @@ dirent_t *vfs_readdir(dir_t *dir, dirent_t *entry)
 void vfs_closedir(dir_t *dir)
 {
     kfree(dir);
+}
+
+static bool valid_fd(int32_t fd)
+{
+    return (fd >= 0 && fd < MAX_FILE_DESCRIPTOR);
+}
+
+static int32_t get_unused_fd()
+{
+    task_t *task = (task_t *) get_current();
+    for (int i = 0; i < MAX_FILE_DESCRIPTOR; ++i) {
+        if (!task->fdt[i])
+            return i;
+    }
+    return -1;
+}
+
+int32_t do_open(char *pathname, int32_t flags)
+{
+    task_t *task = (task_t *) get_current();
+    file_t *file = vfs_open(pathname, flags);
+    if (!file)
+        return -1;
+    for (int32_t i = 0; i < MAX_FILE_DESCRIPTOR; ++i) {
+        if (task->fdt[i] == file)
+            return i;  // return exist fd
+    }
+    int32_t fd = get_unused_fd();
+    if (fd == -1)
+        return -1;
+    task->fdt[fd] = file;
+    return fd;
+}
+
+int32_t do_close(int32_t fd)
+{
+    task_t *task = (task_t *) get_current();
+    file_t *file;
+    if (!valid_fd(fd) || !(file = task->fdt[fd]))
+        return -1;
+    vfs_close(file);
+    task->fdt[fd] = NULL;
+    return 0;
+}
+
+ssize_t do_write(int32_t fd, void *buf, size_t size)
+{
+    task_t *task = (task_t *) get_current();
+    if (!valid_fd(fd) || !buf)
+        return -1;
+    return (ssize_t) vfs_write(task->fdt[fd], (const void *) buf, size);
+}
+
+ssize_t do_read(int32_t fd, void *buf, size_t size)
+{
+    task_t *task = (task_t *) get_current();
+    if (!valid_fd(fd) || !buf)
+        return -1;
+    return (ssize_t) vfs_read(task->fdt[fd], buf, size);
 }
 
 void vfs_test()

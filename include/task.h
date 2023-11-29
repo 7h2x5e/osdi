@@ -10,6 +10,7 @@
 #include <include/list.h>
 #include <include/types.h>
 #include <include/mm.h>
+#include <include/vfs.h>
 
 /* runqueue ring buffer */
 #define MAX_TASK (1 << 6)
@@ -18,6 +19,9 @@
 /* task pool */
 #define KSTACK_SIZE (1 << 13)
 #define USTACK_SIZE (1 << 13)
+
+/* file descriptor table */
+#define MAX_FILE_DESCRIPTOR 16
 
 typedef enum {
     TASK_UNUSED,
@@ -55,6 +59,7 @@ typedef struct task_struct {
     sigvec_t sig_blocked;
     mm_struct mm;
     struct list_head node;
+    file_t *fdt[MAX_FILE_DESCRIPTOR];
 } task_t;
 
 typedef struct runqueue_t {

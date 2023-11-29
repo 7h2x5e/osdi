@@ -6,6 +6,7 @@
 #include <include/types.h>
 #include <include/utils.h>
 #include <include/mman.h>
+#include <include/vfs.h>
 
 void syscall_handler(struct TrapFrame *tf)
 {
@@ -45,6 +46,20 @@ void syscall_handler(struct TrapFrame *tf)
         break;
     case SYS_mmap:
         ret = sys_mmap(tf);
+        break;
+    case SYS_open:
+        ret = sys_open((char *) tf->x[0], (int32_t) tf->x[1]);
+        break;
+    case SYS_close:
+        ret = sys_close((int32_t) tf->x[0]);
+        break;
+    case SYS_read:
+        ret =
+            sys_read((int32_t) tf->x[0], (void *) tf->x[1], (size_t) tf->x[2]);
+        break;
+    case SYS_write:
+        ret =
+            sys_write((int32_t) tf->x[0], (void *) tf->x[1], (size_t) tf->x[2]);
         break;
     default:
     }
@@ -112,4 +127,24 @@ int64_t sys_mmap(struct TrapFrame *tf)
     return (int64_t) do_mmap((void *) tf->x[0], (size_t) tf->x[1],
                              (mmap_prot_t) tf->x[2], (mmap_flags_t) tf->x[3],
                              (void *) tf->x[4], (off_t) tf->x[5]);
+}
+
+int64_t sys_open(char *pathname, int32_t flags)
+{
+    return (int64_t) do_open(pathname, flags);
+}
+
+int64_t sys_close(int32_t fd)
+{
+    return (int64_t) do_close(fd);
+}
+
+int64_t sys_write(int32_t fd, void *buf, size_t size)
+{
+    return (int64_t) do_write(fd, buf, size);
+}
+
+int64_t sys_read(int32_t fd, void *buf, size_t size)
+{
+    return (int64_t) do_read(fd, buf, size);
 }
