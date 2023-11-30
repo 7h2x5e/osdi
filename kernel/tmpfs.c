@@ -23,7 +23,8 @@ static int v_lookup(dentry_t *dir,
 
 static int v_create(dentry_t *dir_node,
                     dentry_t **target,
-                    const char *component_name)
+                    const char *component_name,
+                    enum node_attr_flag flag)
 {
     if (dir_node->flag != DIRECTORY) {
         return -1;
@@ -50,7 +51,7 @@ static int v_create(dentry_t *dir_node,
         goto _v_create_fail;
     }
     strcpy(new->name, component_name);
-    new->flag = FILE;
+    new->flag = flag;
     new->vnode = (struct vnode *) kzalloc(sizeof(struct vnode));
     if (!new->vnode || setup_vnode(new->vnode, NULL)) {
         goto _v_create_fail;
@@ -59,12 +60,14 @@ static int v_create(dentry_t *dir_node,
     new->parent = dir_node;
     memset(new->child, 0, sizeof(new->child));
 
-    // set new file size as 0
-    new->internal = (void *) kzalloc(sizeof(tmpfs_node_t));
-    if (!new->internal) {
-        goto _v_create_fail;
+    if (new->flag == FILE) {
+        // set new file size as 0
+        new->internal = (void *) kzalloc(sizeof(tmpfs_node_t));
+        if (!new->internal) {
+            goto _v_create_fail;
+        }
+        ((tmpfs_node_t *) (new->internal))->file_length = 0;
     }
-    ((tmpfs_node_t *) (new->internal))->file_length = 0;
 
     // put new file/directory in parent
     dir_node->child[dir_node->child_amount++] = new;

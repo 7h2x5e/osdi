@@ -61,6 +61,9 @@ void syscall_handler(struct TrapFrame *tf)
         ret =
             sys_write((int32_t) tf->x[0], (void *) tf->x[1], (size_t) tf->x[2]);
         break;
+    case SYS_mkdir:
+        ret = sys_mkdir((char *) tf->x[0]);
+        break;
     default:
     }
     tf->x[0] = (uint64_t) ret;
@@ -147,4 +150,9 @@ int64_t sys_write(int32_t fd, void *buf, size_t size)
 int64_t sys_read(int32_t fd, void *buf, size_t size)
 {
     return (int64_t) do_read(fd, buf, size);
+}
+
+int64_t sys_mkdir(char *pathname)
+{
+    return (int64_t) do_mkdir(pathname);
 }

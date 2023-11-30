@@ -65,7 +65,8 @@ struct vnode_operations {
                   const char *component_name);
     int (*create)(struct dentry *dir_node,
                   struct dentry **target,
-                  const char *component_name);
+                  const char *component_name,
+                  enum node_attr_flag flag);
 };
 
 int register_filesystem(struct filesystem *fs);
@@ -76,6 +77,7 @@ int vfs_read(file_t *file, void *buf, size_t len);
 dir_t *vfs_opendir(char *pathname);
 dirent_t *vfs_readdir(dir_t *dir, dirent_t *entry);
 void vfs_closedir(dir_t *dir);
+int vfs_mkdir(char *pathname);
 void vfs_test();
 
 /* for syscall */
@@ -83,5 +85,6 @@ int32_t do_open(char *pathname, int32_t flags);
 int32_t do_close(int32_t fd);
 ssize_t do_write(int32_t fd, void *buf, size_t size);
 ssize_t do_read(int32_t fd, void *buf, size_t size);
+int32_t do_mkdir(char *pathname);
 
 #endif

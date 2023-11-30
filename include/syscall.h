@@ -22,6 +22,7 @@ enum {
     SYS_close,
     SYS_read,
     SYS_write,
+    SYS_mkdir,
 };
 
 void syscall_handler(struct TrapFrame *tf);
@@ -42,6 +43,7 @@ int32_t open(char *, int32_t);
 int32_t close(int32_t);
 ssize_t read(int32_t, void *, size_t);
 ssize_t write(int32_t, void *, size_t);
+int32_t mkdir(char *);
 
 /* wrapper */
 int64_t sys_reset(uint64_t);
@@ -59,5 +61,6 @@ int64_t sys_open(char *, int32_t);
 int64_t sys_close(int32_t);
 int64_t sys_read(int32_t, void *, size_t);
 int64_t sys_write(int32_t, void *, size_t);
+int64_t sys_mkdir(char *);
 
 #endif

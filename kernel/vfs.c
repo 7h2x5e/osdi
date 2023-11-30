@@ -109,7 +109,7 @@ file_t *vfs_open(const char *pathname, int flags)
     } else if (ret == FILE_NOT_FOUND) {
         if (flags & O_CREAT) {
             if (0 != target->vnode->v_ops->create(target, &dentry,
-                                                  last_component_name)) {
+                                                  last_component_name, FILE)) {
                 // KERNEL_LOG_INFO("VFS :: File %s couldn't be created",
                 //                 last_component_name);
                 return NULL;
@@ -177,6 +177,30 @@ void vfs_closedir(dir_t *dir)
     kfree(dir);
 }
 
+int vfs_mkdir(char *pathname)
+{
+    dentry_t *target, *dentry;
+    char last_component_name[256];
+    int ret = find_dentry(pathname, &target, last_component_name);
+
+    if (ret == DIR_NOT_FOUND) {
+        // KERNEL_LOG_INFO("mkdir: dir %s not found", last_component_name);
+        return -1;
+    } else if (ret == FILE_FOUND && target->flag != DIRECTORY) {
+        // KERNEL_LOG_INFO("mkdir: cannot create directory ‘%s’: File exists",
+        //                 target->name);
+        return -1;
+    } else if (ret == FILE_NOT_FOUND) {
+        if (0 != target->vnode->v_ops->create(target, &dentry,
+                                              last_component_name, DIRECTORY)) {
+            // KERNEL_LOG_INFO("mkdir: cannot create directory ‘%s’",
+            //                 last_component_name);
+            return -1;
+        }
+    }
+    return 0;
+}
+
 static bool valid_fd(int32_t fd)
 {
     return (fd >= 0 && fd < MAX_FILE_DESCRIPTOR);
@@ -236,6 +260,11 @@ ssize_t do_read(int32_t fd, void *buf, size_t size)
     return (ssize_t) vfs_read(task->fdt[fd], buf, size);
 }
 
+int32_t do_mkdir(char *pathname)
+{
+    return vfs_mkdir(pathname);
+}
+
 void vfs_test()
 {
     file_t *file;
@@ -287,6 +316,11 @@ void vfs_test()
     assert(count == 64);
     assert(0 == memcmp(testdata, buf, 64));
     vfs_close(file);
+
+    KERNEL_LOG_INFO("==> mkdir: %s, %s", "/komica", "/komica.txt");
+    assert(0 == vfs_mkdir("/komica"));
+    assert(0 == vfs_mkdir("/komica"));
+    assert(-1 == vfs_mkdir("/komica.txt"));
 
     KERNEL_LOG_INFO("==> List all entry in root directory");
     file = vfs_open("/komica2.txt", O_CREAT);
