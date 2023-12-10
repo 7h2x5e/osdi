@@ -17,6 +17,45 @@ int strcmp(const char *p1, const char *p2)
     return c1 - c2;
 }
 
+int strncmp(const char *s1, const char *s2, size_t n)
+{
+    unsigned c1 = '\0';
+    unsigned c2 = '\0';
+
+    if (n >= 4) {
+        size_t n4 = n >> 2;
+        do {
+            c1 = (unsigned char) *s1++;
+            c2 = (unsigned char) *s2++;
+            if (c1 == '\0' || c1 != c2)
+                return c1 - c2;
+            c1 = (unsigned char) *s1++;
+            c2 = (unsigned char) *s2++;
+            if (c1 == '\0' || c1 != c2)
+                return c1 - c2;
+            c1 = (unsigned char) *s1++;
+            c2 = (unsigned char) *s2++;
+            if (c1 == '\0' || c1 != c2)
+                return c1 - c2;
+            c1 = (unsigned char) *s1++;
+            c2 = (unsigned char) *s2++;
+            if (c1 == '\0' || c1 != c2)
+                return c1 - c2;
+        } while (--n4 > 0);
+        n &= 3;
+    }
+
+    while (n > 0) {
+        c1 = (unsigned char) *s1++;
+        c2 = (unsigned char) *s2++;
+        if (c1 == '\0' || c1 != c2)
+            return c1 - c2;
+        n--;
+    }
+
+    return c1 - c2;
+}
+
 char *strcpy(char *dest, const char *src)
 {
     char c;
@@ -28,6 +67,62 @@ char *strcpy(char *dest, const char *src)
     } while (c != '\0');
 
     return dest;
+}
+
+char *strncpy(char *s1, const char *s2, size_t n)
+{
+    char c;
+    char *s = s1;
+
+    --s1;
+
+    if (n >= 4) {
+        size_t n4 = n >> 2;
+
+        for (;;) {
+            c = *s2++;
+            *++s1 = c;
+            if (c == '\0')
+                break;
+            c = *s2++;
+            *++s1 = c;
+            if (c == '\0')
+                break;
+            c = *s2++;
+            *++s1 = c;
+            if (c == '\0')
+                break;
+            c = *s2++;
+            *++s1 = c;
+            if (c == '\0')
+                break;
+            if (--n4 == 0)
+                goto last_chars;
+        }
+        n = n - (s1 - s) - 1;
+        if (n == 0)
+            return s;
+        goto zero_fill;
+    }
+
+last_chars:
+    n &= 3;
+    if (n == 0)
+        return s;
+
+    do {
+        c = *s2++;
+        *++s1 = c;
+        if (--n == 0)
+            return s;
+    } while (c != '\0');
+
+zero_fill:
+    do
+        *++s1 = '\0';
+    while (--n > 0);
+
+    return s;
 }
 
 int strlen(const char *str)
