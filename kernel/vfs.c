@@ -5,26 +5,32 @@
 #include <include/kernel_log.h>
 #include <include/assert.h>
 #include <include/task.h>
+#include <include/types.h>
+#include <include/stdio.h>
+#include <include/slab.h>
+#include <include/mount.h>
+#include <include/list.h>
 
-static struct mount *rootfs = NULL;
+struct dentry *root_dir = NULL;
+static LIST_HEAD(filesystem_list);
 
-enum { FILE_FOUND, FILE_NOT_FOUND, DIR_NOT_FOUND };
-
-int register_filesystem(struct filesystem *fs)
+void register_filesystem(struct filesystem *fs)
 {
     if (!fs)
-        return E_INVAL;
+        return;
+    list_add_tail(&fs->head, &filesystem_list);
+}
 
-    // mount tmpfs to rootfs
-    if (strcmp(fs->name, "tmpfs") == 0) {
-        if (!rootfs) {
-            rootfs = (struct mount *) kzalloc(sizeof(struct mount));
-            fs->setup_mount(fs, rootfs);
+struct filesystem *find_filesystem(const char *str)
+{
+    struct filesystem *fs;
+    list_for_each_entry(fs, &filesystem_list, head)
+    {
+        if (!strcmp(fs->name, str)) {
+            return fs;
         }
-        return 0;
     }
-
-    return E_INVAL;
+    return NULL;
 }
 
 static const char *find_component_name(const char *str, char *component_name)
@@ -51,19 +57,24 @@ static const char *find_component_name(const char *str, char *component_name)
     return &str[i + 1];  // skip '/'
 }
 
-static int find_dentry(const char *pathname,
-                       dentry_t **target,
-                       char last_component_name[])
+int find_dentry(const char *pathname,  // relative or absolute path
+                dentry_t **target,
+                char last_component_name[])
 {
     dentry_t *cur, *tmp;
-    char component_name[256];
+    char component_name[256], buf[256];
 
-    if (!rootfs || !strlen(pathname) || pathname[0] != '/') {
+    if (!root_dir || !strlen(pathname)) {
         *target = NULL;
         return FILE_NOT_FOUND;
+    } else if (pathname[0] != '/') {
+        // convert relative path to absolute path
+        vfs_getcwd(buf, sizeof(buf));
+        strcpy(buf + strlen(buf), pathname);
+        pathname = buf;
     }
 
-    cur = rootfs->root_dir;
+    cur = root_dir;
     pathname = find_component_name(pathname + 1, component_name);
 
     while ((cur->flag == DIRECTORY) && (0 < strlen(component_name)) &&
@@ -86,7 +97,11 @@ static int find_dentry(const char *pathname,
 
     // no, it's the last one component
     if (strlen(component_name) == 0) {
-        *target = cur;
+        if (cur->d_mount) {
+            *target = cur->d_mount;
+        } else {
+            *target = cur;
+        }
         return FILE_NOT_FOUND;
     }
 
@@ -201,6 +216,42 @@ int vfs_mkdir(char *pathname)
     return 0;
 }
 
+int vfs_chdir(char *pathname)
+{
+    dentry_t *target;
+    char last_component_name[256];
+    int ret = find_dentry(pathname, &target, last_component_name);
+    if (ret == FILE_FOUND && target->flag == DIRECTORY) {
+        task_t *task = (task_t *) get_current();
+        task->fs.pwd.dentry = target;
+        return 0;
+    }
+    return -1;
+}
+
+static size_t print_path(dentry_t *dentry, char *buf, size_t size)
+{
+    // todo: size
+    if (!dentry->parent || dentry->parent == dentry) {
+        return sprintf(buf, "/");
+    }
+    size_t count = print_path(dentry->parent, buf, size);
+    if (dentry->p_mount) {
+        count += sprintf(buf + count, "%s/", dentry->p_mount->name);
+    } else {
+        count += sprintf(buf + count, "%s/", dentry->name);
+    }
+    return count;
+}
+
+int vfs_getcwd(char *pathname, size_t size)
+{
+    task_t *task = (task_t *) get_current();
+    dentry_t *dentry = task->fs.pwd.dentry;
+    print_path(dentry, pathname, size);
+    return 0;
+}
+
 static bool valid_fd(int32_t fd)
 {
     return (fd >= 0 && fd < MAX_FILE_DESCRIPTOR);
@@ -265,6 +316,16 @@ int32_t do_mkdir(char *pathname)
     return vfs_mkdir(pathname);
 }
 
+int32_t do_chdir(char *pathname)
+{
+    return vfs_chdir(pathname);
+}
+
+int32_t do_getcwd(char *pathname, size_t size)
+{
+    return vfs_getcwd(pathname, size);
+}
+
 void vfs_test()
 {
     file_t *file;
@@ -321,6 +382,15 @@ void vfs_test()
     assert(0 == vfs_mkdir("/komica"));
     assert(0 == vfs_mkdir("/komica"));
     assert(-1 == vfs_mkdir("/komica.txt"));
+
+    KERNEL_LOG_INFO("==> chdir: %s", "komica");
+    assert(0 == vfs_chdir("komica"));
+    vfs_getcwd((char *) buf, sizeof(buf));
+    KERNEL_LOG_INFO("current directory: %s", buf);
+    KERNEL_LOG_INFO("==> chdir: %s", "/");
+    assert(0 == vfs_chdir("/"));
+    vfs_getcwd((char *) buf, sizeof(buf));
+    KERNEL_LOG_INFO("current directory: %s", buf);
 
     KERNEL_LOG_INFO("==> List all entry in root directory");
     file = vfs_open("/komica2.txt", O_CREAT);

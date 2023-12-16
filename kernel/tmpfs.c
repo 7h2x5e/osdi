@@ -4,13 +4,28 @@
 #include <include/error.h>
 #include <include/slab.h>
 #include <include/string.h>
+#include <include/mount.h>
 
-static int setup_vnode(struct vnode *node, struct mount *mount);
+static int setup_vnode(struct vnode *node);
 
 static int v_lookup(dentry_t *dir,
                     dentry_t **target,
                     const char *component_name)
 {
+    if (0 == strcmp(".", component_name)) {
+        *target = dir;
+        return 0;
+    } else if (0 == strcmp("..", component_name)) {
+        if (dir->parent != NULL) {
+            *target = dir->parent;
+        }
+        return 0;
+    }
+
+    if (dir->d_mount != NULL) {
+        dir = dir->d_mount;  // replace with root dentry of mounted filesystem
+    }
+
     for (int i = 0; i < dir->child_amount; i++) {
         if (0 == strcmp(dir->child[i]->name, component_name)) {
             *target = dir->child[i];
@@ -53,12 +68,15 @@ static int v_create(dentry_t *dir_node,
     strcpy(new->name, component_name);
     new->flag = flag;
     new->vnode = (struct vnode *) kzalloc(sizeof(struct vnode));
-    if (!new->vnode || setup_vnode(new->vnode, NULL)) {
+    if (!new->vnode || setup_vnode(new->vnode)) {
         goto _v_create_fail;
     }
     new->child_amount = 0;
     new->parent = dir_node;
     memset(new->child, 0, sizeof(new->child));
+    new->d_sb = NULL;
+    new->d_mount = NULL;
+    new->p_mount = NULL;
 
     if (new->flag == FILE) {
         // set new file size as 0
@@ -109,38 +127,41 @@ static int f_read(file_t *file, void *buf, size_t len)
     return count;
 }
 
-static int setup_mount(struct filesystem *fs, struct mount *mount)
+static int tmpfs_fill_super(struct super_block *sb, void *data)
 {
-    if (!fs || !mount)
-        return E_INVAL;
+    if (!sb)
+        goto _error;
 
-    mount->fs = fs;
+    // set up dentry of root directory
+    dentry_t *root = (dentry_t *) kzalloc(sizeof(dentry_t));
+    if (!root)
+        goto _error;
+    root->name = "/";
+    root->flag = DIRECTORY;
+    root->vnode = (struct vnode *) kzalloc(sizeof(struct vnode));
+    if (!root->vnode || setup_vnode(root->vnode))
+        goto _error;
+    root->child_amount = 0;
+    root->parent = NULL;
+    memset(root->child, 0, sizeof(root->child));
+    root->d_sb = sb;
+    root->d_mount = NULL;
+    root->p_mount = NULL;
 
-    // set up root dir
-    mount->root_dir = (dentry_t *) kzalloc(sizeof(dentry_t));
-    if (!mount->root_dir) {
-        goto _setup_mount_fail;
-    }
-    mount->root_dir->name = "/";
-    mount->root_dir->flag = DIRECTORY;
-    mount->root_dir->vnode = (struct vnode *) kzalloc(sizeof(struct vnode));
-    if (!mount->root_dir->vnode || setup_vnode(mount->root_dir->vnode, mount))
-        goto _setup_mount_fail;
-    mount->root_dir->child_amount = 0;
-    mount->root_dir->parent = NULL;
-    memset(mount->root_dir->child, 0, sizeof(mount->root_dir->child));
-
+    // set up superblock
+    sb->s_root = root;
+    INIT_LIST_HEAD(&sb->s_mounts);
     return 0;
 
-_setup_mount_fail:
-    if (mount->root_dir) {
-        kfree(mount->root_dir->vnode);
+_error:
+    if (root) {
+        kfree(root->vnode);
     }
-    kfree(mount->root_dir);
-    return E_FAULT;
+    kfree(root);
+    return -1;
 }
 
-static int setup_vnode(struct vnode *node, struct mount *mount)
+static int setup_vnode(struct vnode *node)
 {
     node->v_ops =
         (struct vnode_operations *) kzalloc(sizeof(struct vnode_operations));
@@ -154,7 +175,6 @@ static int setup_vnode(struct vnode *node, struct mount *mount)
     node->v_ops->create = v_create;
     node->f_ops->write = f_write;
     node->f_ops->read = f_read;
-    node->mount = mount;
 
     return 0;
 
@@ -164,11 +184,16 @@ _setup_vnode_fail:
     return -1;
 }
 
+struct dentry *tmpfs_mount(struct filesystem *fs, const char *name, void *data)
+{
+    return mount_bdev(fs, name, tmpfs_fill_super, data);
+}
+
 void tmpfs_init()
 {
     struct filesystem *fs = kmalloc(sizeof(struct filesystem));
+    fs->mount = tmpfs_mount;
     fs->name = "tmpfs";
-    fs->setup_mount = setup_mount;
-
+    fs->sb = NULL;
     register_filesystem(fs);
 }

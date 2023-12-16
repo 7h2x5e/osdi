@@ -7,6 +7,7 @@
 #include <include/utils.h>
 #include <include/mman.h>
 #include <include/vfs.h>
+#include <include/mount.h>
 
 void syscall_handler(struct TrapFrame *tf)
 {
@@ -63,6 +64,16 @@ void syscall_handler(struct TrapFrame *tf)
         break;
     case SYS_mkdir:
         ret = sys_mkdir((char *) tf->x[0]);
+        break;
+    case SYS_chdir:
+        ret = sys_chdir((char *) tf->x[0]);
+        break;
+    case SYS_getcwd:
+        ret = sys_getcwd((char *) tf->x[0], (size_t) tf->x[1]);
+        break;
+    case SYS_mount:
+        ret = sys_mount((const char *) tf->x[0], (const char *) tf->x[1],
+                        (const char *) tf->x[2]);
         break;
     default:
     }
@@ -155,4 +166,21 @@ int64_t sys_read(int32_t fd, void *buf, size_t size)
 int64_t sys_mkdir(char *pathname)
 {
     return (int64_t) do_mkdir(pathname);
+}
+
+int64_t sys_chdir(char *pathname)
+{
+    return (int64_t) do_chdir(pathname);
+}
+
+int64_t sys_getcwd(char *pathname, size_t size)
+{
+    return (int64_t) do_getcwd(pathname, size);
+}
+
+int64_t sys_mount(const char *device,
+                  const char *mountpoint,
+                  const char *filesystem)
+{
+    return (int64_t) do_mount(device, mountpoint, filesystem);
 }

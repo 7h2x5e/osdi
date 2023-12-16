@@ -237,7 +237,13 @@ int64_t privilege_task_create(void (*func)())
     task->sig_blocked = 0;
     mm_init(&task->mm);
     INIT_LIST_HEAD(&task->node);
+
+    dentry_t *dentry;
+    char last_component_name[256];
+    find_dentry("/", &dentry, last_component_name);
+    task->fs.pwd.dentry = dentry; /* root directory */
     memset(task->fdt, 0, sizeof(task->fdt));
+
     runqueue_push(&runqueue, &task);
 
     return (int64_t) tid;

@@ -6,8 +6,9 @@
 #include <include/task.h>
 #include <include/demo.h>
 #include <include/mm.h>
-#include <include/tmpfs.h>
+#include <include/mount.h>
 #include <include/vfs.h>
+#include <include/tmpfs.h>
 
 void main()
 {
@@ -19,6 +20,8 @@ void main()
     fb_showpicture();
     mem_init();
     tmpfs_init();
+    do_mount("tmpfs", "/", "tmpfs");
+
     vfs_test();
     init_task();
     core_timer_enable();

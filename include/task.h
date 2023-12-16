@@ -60,6 +60,7 @@ typedef struct task_struct {
     mm_struct mm;
     struct list_head node;
     file_t *fdt[MAX_FILE_DESCRIPTOR];
+    struct fs_struct fs;
 } task_t;
 
 typedef struct runqueue_t {
