@@ -354,23 +354,28 @@ void vfs_test()
     assert(file != NULL);
     vfs_close(file);
 
-    KERNEL_LOG_INFO("==> Parent directory not exist: %s", "/komica/komica.txt");
-    file = vfs_open("/komica/2", 0);
+    KERNEL_LOG_INFO("==> Open non-existent directory: /folder");
+    file = vfs_open("/folder", 0);
     assert(file == NULL);
     vfs_close(file);
 
-    KERNEL_LOG_INFO("==> File not exist: %s", "/komica.txt");
-    file = vfs_open("/komica.txt", 0);
+    KERNEL_LOG_INFO("==> Open non-existent file: /folder/file.txt");
+    file = vfs_open("/folder/file.txt", 0);
     assert(file == NULL);
     vfs_close(file);
 
-    KERNEL_LOG_INFO("==> Open and create file: %s", "/komica.txt");
-    file = vfs_open("/komica.txt", O_CREAT);
+    KERNEL_LOG_INFO("==> Open non-existent file: /file.txt");
+    file = vfs_open("/file.txt", 0);
+    assert(file == NULL);
+    vfs_close(file);
+
+    KERNEL_LOG_INFO("==> Open and create non-existent file: /file.txt");
+    file = vfs_open("/file.txt", O_CREAT);
     assert(file != NULL);
     vfs_close(file);
 
-    KERNEL_LOG_INFO("==> Write to file: %s", "/komica.txt");
-    file = vfs_open("/komica.txt", 0);
+    KERNEL_LOG_INFO("==> Write to file: /file.txt");
+    file = vfs_open("/file.txt", 0);
     assert(file != NULL);
     count = vfs_write(file, testdata, 32);
     assert(count == 32);
@@ -380,42 +385,91 @@ void vfs_test()
     assert(count == 0);  // full
     vfs_close(file);
 
-    KERNEL_LOG_INFO("==> Read from file: %s", "/komica.txt");
-    file = vfs_open("/komica.txt", 0);
+    KERNEL_LOG_INFO("==> Read from file: /file.txt");
+    file = vfs_open("/file.txt", 0);
     assert(file != NULL);
     count = vfs_read(file, buf, 128);
     assert(count == 64);
     assert(0 == memcmp(testdata, buf, 64));
     vfs_close(file);
 
-    KERNEL_LOG_INFO("==> mkdir: %s, %s", "/komica", "/komica.txt");
-    assert(0 == vfs_mkdir("/komica"));
-    assert(0 == vfs_mkdir("/komica"));
-    assert(-1 == vfs_mkdir("/komica.txt"));
+    KERNEL_LOG_INFO("==> mkdir: /folder, /file.txt");
+    assert(0 == vfs_mkdir("/folder"));
+    assert(0 == vfs_mkdir("/folder"));
+    assert(-1 == vfs_mkdir("/file.txt"));
 
-    KERNEL_LOG_INFO("==> chdir: %s", "komica");
-    assert(0 == vfs_chdir("komica"));
+    KERNEL_LOG_INFO("==> chdir: /folder");
+    assert(0 == vfs_chdir("folder"));
     vfs_getcwd((char *) buf, sizeof(buf));
     KERNEL_LOG_INFO("current directory: %s", buf);
-    KERNEL_LOG_INFO("==> chdir: %s", "/");
+    KERNEL_LOG_INFO("==> chdir: /");
     assert(0 == vfs_chdir("/"));
     vfs_getcwd((char *) buf, sizeof(buf));
     KERNEL_LOG_INFO("current directory: %s", buf);
 
 #define filetype(flag) (flag == DIRECTORY ? 'D' : 'F')
-    KERNEL_LOG_INFO("==> List all entry in root directory");
-    file = vfs_open("/komica2.txt", O_CREAT);
-    vfs_close(file);
-    file = vfs_open("/komica3.txt", O_CREAT);
-    vfs_close(file);
-    dir = vfs_opendir("/");
-    assert(dir != NULL);
-    KERNEL_LOG_INFO("Type\tFilename");
+
+    KERNEL_LOG_INFO("==> List all files in /");
+    assert((dir = vfs_opendir("/")) != NULL);
     while ((entry = vfs_readdir(dir)) != NULL) {
         KERNEL_LOG_INFO("%c\t%d\t%s", filetype(entry->flag), entry->inode->size,
                         entry->name);
     }
     vfs_closedir(dir);
+
+    KERNEL_LOG_INFO("==> List all files in /folder");
+    assert((dir = vfs_opendir("/folder")) != NULL);
+    while ((entry = vfs_readdir(dir)) != NULL) {
+        KERNEL_LOG_INFO("%c\t%d\t%s", filetype(entry->flag), entry->inode->size,
+                        entry->name);
+    }
+    vfs_closedir(dir);
+
+    KERNEL_LOG_INFO("==> List all files in /folder");
+    assert(0 == vfs_chdir("/folder"));
+    assert((dir = vfs_opendir(".")) != NULL);
+    while ((entry = vfs_readdir(dir)) != NULL) {
+        KERNEL_LOG_INFO("%c\t%d\t%s", filetype(entry->flag), entry->inode->size,
+                        entry->name);
+    }
+    vfs_closedir(dir);
+
+    /* Test fatfs */
+    KERNEL_LOG_INFO("==> List all files in /sdcard");
+    assert((dir = vfs_opendir("/sdcard")) != NULL);
+    while ((entry = vfs_readdir(dir)) != NULL) {
+        KERNEL_LOG_INFO("%c\t%d\t%s", filetype(entry->flag), entry->inode->size,
+                        entry->name);
+    }
+    vfs_closedir(dir);
+
+    KERNEL_LOG_INFO("==> List all files in /sdcard");
+    assert(0 == vfs_chdir("/"));
+    assert((dir = vfs_opendir("sdcard")) != NULL);
+    while ((entry = vfs_readdir(dir)) != NULL) {
+        KERNEL_LOG_INFO("%c\t%d\t%s", filetype(entry->flag), entry->inode->size,
+                        entry->name);
+    }
+    vfs_closedir(dir);
+
+    KERNEL_LOG_INFO("==> List all files in /sdcard");
+    assert(0 == vfs_chdir("/sdcard"));
+    assert((dir = vfs_opendir(".")) != NULL);
+    while ((entry = vfs_readdir(dir)) != NULL) {
+        KERNEL_LOG_INFO("%c\t%d\t%s", filetype(entry->flag), entry->inode->size,
+                        entry->name);
+    }
+    vfs_closedir(dir);
+
+    KERNEL_LOG_INFO("==> List all files in /");
+    assert(0 == vfs_chdir(".."));
+    assert((dir = vfs_opendir(".")) != NULL);
+    while ((entry = vfs_readdir(dir)) != NULL) {
+        KERNEL_LOG_INFO("%c\t%d\t%s", filetype(entry->flag), entry->inode->size,
+                        entry->name);
+    }
+    vfs_closedir(dir);
+
 #undef filetype
 
     KERNEL_LOG_INFO("<-- VFS API Test End -->");

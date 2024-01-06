@@ -9,6 +9,8 @@
 #include <include/mount.h>
 #include <include/vfs.h>
 #include <include/tmpfs.h>
+#include <include/fatfs.h>
+#include <include/sd.h>
 
 void main()
 {
@@ -19,12 +21,15 @@ void main()
     fb_init();
     fb_showpicture();
     mem_init();
+    sd_init();
     tmpfs_init();
-    do_mount("tmpfs", "/", "tmpfs");
-
-    vfs_test();
+    fatfs_init();
     init_task();
     core_timer_enable();
+
+    do_mount("tmpfs", "/", "tmpfs");
+    do_mkdir("/sdcard");
+    do_mount("sdcard", "/sdcard", "fatfs");
 
     privilege_task_create(&zombie_reaper);
     privilege_task_create(&required_3_5);

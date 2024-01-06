@@ -20,13 +20,13 @@ $(GIT_HOOKS):
 	@echo
 
 asm: all
-	qemu-system-aarch64 -M raspi3b -kernel kernel8.img -serial pty -monitor stdio -d in_asm
+	qemu-system-aarch64 -M raspi3b -kernel kernel8.img -serial pty -drive if=sd,file=disk.img,format=raw -monitor stdio -d in_asm
 
 run: all
-	qemu-system-aarch64 -M raspi3b -kernel kernel8.img -serial pty -monitor stdio
+	qemu-system-aarch64 -M raspi3b -kernel kernel8.img -serial pty -drive if=sd,file=disk.img,format=raw -monitor stdio
 	
 debug: all
-	qemu-system-aarch64 -M raspi3b -kernel kernel8.img -serial pty -monitor stdio -S -s
+	qemu-system-aarch64 -M raspi3b -kernel kernel8.img -serial pty -drive if=sd,file=disk.img,format=raw -monitor stdio -S -s
 
 clean:
 	rm -rf kernel8.*
