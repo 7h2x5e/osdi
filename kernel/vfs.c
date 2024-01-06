@@ -170,21 +170,31 @@ dir_t *vfs_opendir(char *pathname)
 {
     dir_t *dir = NULL;
     file_t *file = vfs_open(pathname, 0);
+    dentry_t *target = NULL;
+    char last_component_name[256], pathname2[256];
+
     if (file && file->dentry->flag == DIRECTORY) {
+        // read all dentries of the directory
+        sprintf(pathname2, "%s/%s", pathname, "__dummy__");
+        find_dentry(pathname2, &target, last_component_name);
+
+        target = file->dentry;
         dir = kmalloc(sizeof(dir_t));
-        dir->idx = 0;
-        dir->dentry = file->dentry;
+        if (target->d_mount) {
+            target = target->d_mount;
+        }
+        dir->head = dir->cur = &target->l_head;
     }
     vfs_close(file);
     return dir;
 }
 
-dirent_t *vfs_readdir(dir_t *dir, dirent_t *entry)
+dentry_t *vfs_readdir(dir_t *dir)
 {
-    if (!dir || !entry || dir->dentry->child_amount <= dir->idx)
+    if (!dir || list_is_last(dir->cur, dir->head))
         return NULL;
-    entry->dentry = dir->dentry->child[dir->idx++];
-    return entry;
+    dir->cur = dir->cur->next;
+    return list_entry(dir->cur, dentry_t, c_head);
 }
 
 void vfs_closedir(dir_t *dir)
@@ -331,8 +341,8 @@ void vfs_test()
     file_t *file;
     uint8_t buf[64], testdata[64];  // assume max file size in tmpfs = 64 bytes
     size_t count;
-    dirent_t entry;
     dir_t *dir;
+    dentry_t *entry;
 
     for (int i = 0; i < 64; i++)
         testdata[i] = i;
@@ -392,6 +402,7 @@ void vfs_test()
     vfs_getcwd((char *) buf, sizeof(buf));
     KERNEL_LOG_INFO("current directory: %s", buf);
 
+#define filetype(flag) (flag == DIRECTORY ? 'D' : 'F')
     KERNEL_LOG_INFO("==> List all entry in root directory");
     file = vfs_open("/komica2.txt", O_CREAT);
     vfs_close(file);
@@ -400,11 +411,12 @@ void vfs_test()
     dir = vfs_opendir("/");
     assert(dir != NULL);
     KERNEL_LOG_INFO("Type\tFilename");
-    while (vfs_readdir(dir, &entry) != NULL) {
-        KERNEL_LOG_INFO("%c\t%s", entry.dentry->flag == DIRECTORY ? 'D' : 'F',
-                        entry.dentry->name);
+    while ((entry = vfs_readdir(dir)) != NULL) {
+        KERNEL_LOG_INFO("%c\t%d\t%s", filetype(entry->flag), entry->inode->size,
+                        entry->name);
     }
     vfs_closedir(dir);
+#undef filetype
 
     KERNEL_LOG_INFO("<-- VFS API Test End -->");
 }

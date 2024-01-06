@@ -23,12 +23,15 @@ static int v_lookup(dentry_t *dir,
     }
 
     if (dir->d_mount != NULL) {
-        dir = dir->d_mount;  // replace with root dentry of mounted filesystem
+        return dir->d_mount->vnode->v_ops->lookup(dir->d_mount, target,
+                                                  component_name);
     }
 
-    for (int i = 0; i < dir->child_amount; i++) {
-        if (0 == strcmp(dir->child[i]->name, component_name)) {
-            *target = dir->child[i];
+    dentry_t *entry;
+    list_for_each_entry(entry, &dir->l_head, c_head)
+    {
+        if (!strcmp(entry->name, component_name)) {
+            *target = entry;
             return 0;
         }
     }
@@ -45,13 +48,11 @@ static int v_create(dentry_t *dir_node,
         return -1;
     }
 
-    if (dir_node->child_amount >= MAX_CHILD_DIR) {
-        return -1;
-    }
-
     // check if duplicate
-    for (int i = 0; i < dir_node->child_amount; i++) {
-        if (0 == strcmp(dir_node->child[i]->name, component_name)) {
+    dentry_t *tmp;
+    list_for_each_entry(tmp, &dir_node->l_head, c_head)
+    {
+        if (!strcmp(tmp->name, component_name)) {
             return -1;
         }
     }
@@ -71,24 +72,23 @@ static int v_create(dentry_t *dir_node,
     if (!new->vnode || setup_vnode(new->vnode)) {
         goto _v_create_fail;
     }
-    new->child_amount = 0;
     new->parent = dir_node;
-    memset(new->child, 0, sizeof(new->child));
     new->d_sb = NULL;
     new->d_mount = NULL;
     new->p_mount = NULL;
+    INIT_LIST_HEAD(&new->l_head);
+    INIT_LIST_HEAD(&new->c_head);
 
-    if (new->flag == FILE) {
-        // set new file size as 0
-        new->internal = (void *) kzalloc(sizeof(tmpfs_node_t));
-        if (!new->internal) {
-            goto _v_create_fail;
-        }
-        ((tmpfs_node_t *) (new->internal))->file_length = 0;
+    // set up inode
+    tmpfs_node_t *n = (tmpfs_node_t *) kzalloc(sizeof(tmpfs_node_t));
+    if (!n) {
+        goto _v_create_fail;
     }
+    new->inode = (struct inode *) &n->inode;
+    new->inode->size = 0;
 
     // put new file/directory in parent
-    dir_node->child[dir_node->child_amount++] = new;
+    list_add_tail(&new->c_head, &dir_node->l_head);
 
     *target = new;
     return 0;
@@ -104,24 +104,26 @@ _v_create_fail:
 
 static int f_write(file_t *file, const void *buf, size_t len)
 {
-    size_t *file_length_p =
-        &((tmpfs_node_t *) file->dentry->internal)->file_length;
-    uint8_t *data = ((tmpfs_node_t *) file->dentry->internal)->buffer;
+    tmpfs_node_t *n =
+        container_of(file->dentry->inode, struct tmpfs_node, inode);
+    struct inode *i = &n->inode;
+    uint8_t *data = n->buffer;
     int count = MIN(len, TMPFS_FIEL_BUFFER_MAX_LEN - file->f_pos);
     memcpy(data + file->f_pos, buf, count);
     file->f_pos += count;
-    if (file->f_pos > *file_length_p) {
-        *file_length_p = file->f_pos;  // update file length
+    if (file->f_pos > i->size) {
+        i->size = file->f_pos;  // update file length
     }
     return count;
 }
 
 static int f_read(file_t *file, void *buf, size_t len)
 {
-    size_t *file_length_p =
-        &((tmpfs_node_t *) file->dentry->internal)->file_length;
-    uint8_t *data = ((tmpfs_node_t *) file->dentry->internal)->buffer;
-    int count = MIN(len, *file_length_p - file->f_pos);
+    tmpfs_node_t *n =
+        container_of(file->dentry->inode, struct tmpfs_node, inode);
+    struct inode *i = &n->inode;
+    uint8_t *data = n->buffer;
+    int count = MIN(len, i->size - file->f_pos);
     memcpy(buf, data + file->f_pos, count);
     file->f_pos += count;
     return count;
@@ -141,12 +143,20 @@ static int tmpfs_fill_super(struct super_block *sb, void *data)
     root->vnode = (struct vnode *) kzalloc(sizeof(struct vnode));
     if (!root->vnode || setup_vnode(root->vnode))
         goto _error;
-    root->child_amount = 0;
     root->parent = NULL;
-    memset(root->child, 0, sizeof(root->child));
     root->d_sb = sb;
     root->d_mount = NULL;
     root->p_mount = NULL;
+    INIT_LIST_HEAD(&root->l_head);
+    INIT_LIST_HEAD(&root->c_head);
+
+    // set up inode
+    tmpfs_node_t *n = (tmpfs_node_t *) kzalloc(sizeof(tmpfs_node_t));
+    if (!n) {
+        goto _error;
+    }
+    root->inode = (struct inode *) &n->inode;
+    root->inode->size = 0;
 
     // set up superblock
     sb->s_root = root;

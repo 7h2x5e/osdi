@@ -4,8 +4,6 @@
 #include <include/types.h>
 #include <include/list.h>
 
-#define MAX_CHILD_DIR 10
-
 enum { FILE_FOUND, FILE_NOT_FOUND, DIR_NOT_FOUND };
 
 enum file_op_flag {
@@ -22,16 +20,19 @@ struct vnode {
     struct file_operations *f_ops;
 };
 
+struct inode {
+    size_t size;
+};
+
 typedef struct dentry {
     char *name;
     enum node_attr_flag flag;
     struct vnode *vnode;
-    int child_amount;
+    struct inode *inode;
     struct dentry *parent;
-    struct dentry *child[MAX_CHILD_DIR];
-    void *internal;
     struct super_block *d_sb;  // superblock of filesystem
     struct dentry *d_mount, *p_mount;
+    struct list_head l_head, c_head;  // list of all files
 } dentry_t;
 
 typedef struct file {
@@ -40,13 +41,8 @@ typedef struct file {
 } file_t;
 
 typedef struct dir {
-    off_t idx; /* Position of next directory entry to read.  */
-    dentry_t *dentry;
+    struct list_head *head, *cur;
 } dir_t;
-
-typedef struct dirent {
-    dentry_t *dentry;
-} dirent_t;
 
 typedef struct path {
     dentry_t *dentry;
@@ -90,7 +86,7 @@ int vfs_close(file_t *file);
 int vfs_write(file_t *file, const void *buf, size_t len);
 int vfs_read(file_t *file, void *buf, size_t len);
 dir_t *vfs_opendir(char *pathname);
-dirent_t *vfs_readdir(dir_t *dir, dirent_t *entry);
+dentry_t *vfs_readdir(dir_t *dir);
 void vfs_closedir(dir_t *dir);
 int vfs_mkdir(char *pathname);
 int vfs_chdir(char *pathname);
