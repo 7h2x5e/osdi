@@ -100,8 +100,39 @@ static int f_write(file_t *file, const void *buf, size_t len)
 
 static int f_read(file_t *file, void *buf, size_t len)
 {
-    /* not implemented */
-    return 0;
+    fatfs_node_t *n =
+        container_of(file->dentry->inode, struct fatfs_node, inode);
+    int cluster = n->cluster;
+    struct inode *i = &n->inode;
+    size_t size = MIN(len, i->size - file->f_pos),
+           begin_cluster = file->f_pos / bytesPerCluster,
+           offset = file->f_pos % bytesPerCluster;
+
+    if (!size) {
+        return 0;
+    }
+
+    // jump to where we want to read
+    for (int i = 0; i < begin_cluster && cluster != FAT_LAST; i++) {
+        cluster = nextCluster(cluster);
+    }
+    if (cluster == FAT_LAST) {
+        return 0;
+    }
+
+    size_t read_count = size;
+    while (read_count > 0 && cluster != FAT_LAST) {
+        size_t count =
+            MIN(bytesPerCluster - offset, read_count);  // < 512 bytes
+        readData(clusterAddress(cluster, false) + offset, buf, count);
+        offset = 0;
+        buf += count;
+        read_count -= count;
+        cluster = nextCluster(cluster);
+    }
+
+    file->f_pos += (size - read_count);
+    return (size - read_count);
 }
 
 static int fatfs_fill_super(struct super_block *sb, void *data)

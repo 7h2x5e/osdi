@@ -470,6 +470,24 @@ void vfs_test()
     }
     vfs_closedir(dir);
 
+    KERNEL_LOG_INFO("==> Read first file in /sdcard");
+    vfs_chdir("/sdcard");
+    dir = vfs_opendir(".");
+    while ((entry = vfs_readdir(dir)) != NULL) {
+        if (entry->inode->size > 0) {
+            char *bbuf = (char *) kzalloc(entry->inode->size + 1);
+            file = vfs_open(entry->name, 0);
+            vfs_read(file, bbuf, entry->inode->size);
+            KERNEL_LOG_INFO("Filename %s size %d", entry->name,
+                            entry->inode->size);
+            KERNEL_LOG_INFO("%s", bbuf);
+            vfs_close(file);
+            kfree(bbuf);
+            break;
+        }
+    }
+    vfs_closedir(dir);
+
 #undef filetype
 
     KERNEL_LOG_INFO("<-- VFS API Test End -->");
