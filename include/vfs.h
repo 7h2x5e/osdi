@@ -22,6 +22,7 @@ struct vnode {
 
 struct inode {
     size_t size;
+    uint32_t off;  // offset of sfn_t
 };
 
 typedef struct dentry {

@@ -61,6 +61,7 @@ static int v_lookup(dentry_t *dir,
             // set up inode
             fatfs_node_t *n = (fatfs_node_t *) kzalloc(sizeof(fatfs_node_t));
             n->inode.size = pos->size;
+            n->inode.off = (pos->address - buffer);
             n->cluster = pos->cluster;
             new->inode = (struct inode *) &n->inode;
 
@@ -94,8 +95,79 @@ static int v_create(dentry_t *dir_node,
 
 static int f_write(file_t *file, const void *buf, size_t len)
 {
-    /* not implemented */
-    return 0;
+    fatfs_node_t *n =
+        container_of(file->dentry->inode, struct fatfs_node, inode);
+    int cluster = n->cluster, pre_cluster;
+    struct inode *i = &n->inode;
+    size_t begin_cluster = file->f_pos / bytesPerCluster,
+           offset = file->f_pos % bytesPerCluster;
+
+    // jump to where we want to write
+    for (int i = 0; i < begin_cluster && cluster != FAT_LAST; i++) {
+        cluster = nextCluster(cluster);
+    }
+    if (cluster == FAT_LAST) {
+        return 0;
+    }
+
+    size_t write_count = len;
+    while (write_count > 0 && cluster != FAT_LAST) {
+        size_t count =
+            MIN(bytesPerCluster - offset, write_count);  // < 512 bytes
+        writeData(clusterAddress(cluster, false) + offset, (char *) buf, count);
+        offset = 0;
+        buf += count;
+        write_count -= count;
+        pre_cluster = cluster;
+        cluster = nextCluster(cluster);
+
+        // find a new cluster
+        if (cluster == FAT_LAST && write_count > 0) {
+            uint32_t fatEntry, addr;
+            unsigned int new_cluster = pre_cluster + 1;
+
+            while ((addr = fatStart + new_cluster * sizeof(fatEntry)) <
+                   dataStart) {
+                readData(addr, (char *) &fatEntry, sizeof(fatEntry));
+
+                if (fatEntry == 0x00000000) {
+                    // old FAT entry
+                    fatEntry = 0x0FFFFFFF & new_cluster;
+                    writeData(fatStart + pre_cluster * sizeof(fatEntry),
+                              (char *) &fatEntry, sizeof(fatEntry));
+                    // new FAT entry
+                    fatEntry = 0x0FFFFFF8;  // In use (end of chain)
+                    writeData(addr, (char *) &fatEntry, sizeof(fatEntry));
+                    cluster = new_cluster;
+                    break;
+                }
+
+                new_cluster++;
+            }
+
+            // no available FAT entry
+            if (addr >= dataStart) {
+                break;
+            }
+        }
+    }
+
+    file->f_pos += (len - write_count);
+    if (file->f_pos > i->size) {
+        i->size = file->f_pos;
+
+        // write new file size to the file's metadata
+        void *buffer = kmalloc(bytesPerCluster);
+        dentry_t *p_dentry = file->dentry->parent;
+        fatfs_node_t *p_node =
+            container_of(p_dentry->inode, fatfs_node_t, inode);
+        readblock(clusterAddress(p_node->cluster, false) / SECTOR_SIZE, buffer);
+        ((sfn_t *) (buffer + i->off))->size = i->size;
+        writeblock(clusterAddress(p_node->cluster, false) / SECTOR_SIZE,
+                   buffer);
+        kfree(buffer);
+    }
+    return (len - write_count);
 }
 
 static int f_read(file_t *file, void *buf, size_t len)
