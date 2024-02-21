@@ -8,6 +8,7 @@
 #include <include/mman.h>
 #include <include/vfs.h>
 #include <include/mount.h>
+#include <include/string.h>
 
 void syscall_handler(struct TrapFrame *tf)
 {
@@ -74,6 +75,17 @@ void syscall_handler(struct TrapFrame *tf)
     case SYS_mount:
         ret = sys_mount((const char *) tf->x[0], (const char *) tf->x[1],
                         (const char *) tf->x[2]);
+        break;
+    case SYS_opendir:
+        ret = sys_opendir((char *) tf->x[0], (dir_t **) tf->x[1]);
+        break;
+    case SYS_readdir:
+        ret =
+            sys_readdir((dir_t *) tf->x[0], (char *) tf->x[1],
+                        (enum node_attr_flag *) tf->x[2], (size_t *) tf->x[3]);
+        break;
+    case SYS_closedir:
+        ret = sys_closedir((dir_t *) tf->x[0]);
         break;
     default:
     }
@@ -183,4 +195,34 @@ int64_t sys_mount(const char *device,
                   const char *filesystem)
 {
     return (int64_t) do_mount(device, mountpoint, filesystem);
+}
+
+int64_t sys_opendir(char *pathname, dir_t **dir)
+{
+    if (!dir)
+        return -1;
+    *dir = vfs_opendir(pathname);
+    return 0;
+}
+
+int64_t sys_readdir(dir_t *dir,
+                    char *name,
+                    enum node_attr_flag *flag,
+                    size_t *size)
+{
+    if (!dir)
+        return -1;
+    dentry_t *entry = vfs_readdir(dir);
+    if (!entry)
+        return -1;
+    strcpy(name, entry->name);
+    *flag = entry->flag;
+    *size = entry->inode->size;
+    return 0;
+}
+
+int64_t sys_closedir(dir_t *dir)
+{
+    vfs_closedir(dir);
+    return 0;
 }

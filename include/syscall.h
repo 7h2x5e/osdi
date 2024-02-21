@@ -26,6 +26,9 @@ enum {
     SYS_chdir,
     SYS_getcwd,
     SYS_mount,
+    SYS_opendir,
+    SYS_readdir,
+    SYS_closedir,
 };
 
 void syscall_handler(struct TrapFrame *tf);
@@ -50,6 +53,9 @@ int32_t mkdir(char *);
 int32_t chdir(char *);
 int32_t getcwd(char *, size_t);
 int32_t mount(char *, char *, char *);
+int32_t opendir(char *, dir_t **);
+int32_t readdir(dir_t *, char *, enum node_attr_flag *, size_t *);
+int32_t closedir(dir_t *);
 
 /* wrapper */
 int64_t sys_reset(uint64_t);
@@ -71,5 +77,8 @@ int64_t sys_mkdir(char *);
 int64_t sys_chdir(char *);
 int64_t sys_getcwd(char *, size_t);
 int64_t sys_mount(const char *, const char *, const char *);
+int64_t sys_opendir(char *, dir_t **);
+int64_t sys_readdir(dir_t *, char *, enum node_attr_flag *, size_t *);
+int64_t sys_closedir(dir_t *);
 
 #endif

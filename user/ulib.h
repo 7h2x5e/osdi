@@ -8,5 +8,6 @@
 #include <include/signal.h>
 #include <include/types.h>
 #include <include/mman.h>
+#include <include/vfs.h>
 
 #endif
