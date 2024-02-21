@@ -4,13 +4,21 @@
 #include <include/peripherals/uart.h>
 #include <include/sched.h>
 #include <include/task.h>
-#include <include/demo.h>
 #include <include/mm.h>
 #include <include/mount.h>
 #include <include/vfs.h>
 #include <include/tmpfs.h>
 #include <include/fatfs.h>
 #include <include/sd.h>
+
+void init()
+{
+    extern char _binary_user_user_elf_start;
+    uint64_t start = (uint64_t) &_binary_user_user_elf_start;
+    if (-1 == do_exec((uint64_t) start)) {
+        do_exit();
+    }
+}
 
 void main()
 {
@@ -32,7 +40,7 @@ void main()
     do_mount("sdcard", "/sdcard", "fatfs");
 
     privilege_task_create(&zombie_reaper);
-    privilege_task_create(&required_3_5);
+    privilege_task_create(&init);
 
     enable_irq();
 
