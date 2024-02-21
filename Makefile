@@ -13,7 +13,10 @@ include kernel/Makefile
 
 .PHONY: all clean asm run debug directories
 
-all: $(GIT_HOOKS) kernel8.img
+all: $(GIT_HOOKS) kernel8.img disk.img
+
+disk.img:
+	zstd --decompress disk.img.zst
 
 $(GIT_HOOKS):
 	@scripts/install-git-hooks
@@ -33,3 +36,4 @@ clean:
 	rm -rf kernel/*.o kernel/*.elf
 	rm -rf lib/*.o
 	rm -rf user/*.o user/*.elf user/*.bin user/*.img
+	rm -rf *.img
